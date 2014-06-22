@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>jQuery UI Draggable - Default functionality</title>
+  <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.css">
+  <script src="js/jquery-1.10.2.js"></script>
+  <script src="js/jquery-ui-1.10.4.custom.js"></script>
+  <script src="js/svg-input-elements.js"></script>  
+  <style>
+  #draggable { width: 150px; height: 150px; padding: 0.5em; }
+  </style>
+  <script>
+
+var bob = {'child': null};
+
+  var snapPositions = [{'left':30, 'top':40}];
+  var snapParents = [{'left':30, 'top':40, 'id': bob}];
+
+  function snapPosition(position, child) {
+      for (var i = snapPositions.length - 1; i >= 0; i--) {
+          var dist = Math.sqrt(Math.pow((position.left-snapParents[i].left), 2) + Math.pow((position.top-snapParents[i].top), 2));
+          if (dist < 150) {
+            position.left = snapParents[i].left;
+            position.top = snapParents[i].top;
+            snapParents[i].id.child = child;
+            child.wigetParent = snapParents[i].id;
+          }
+          else
+          {
+            child.wigetParent = undefined;
+          }
+          return position;
+      };
+  };
+
+
+
+  var onDrag =  function(event, ui) {
+          ui.position = snapPosition(ui.position, this);
+      };
+
+  var onEnd = function() {
+      //$(this).offset({'top': 100, 'left': 100});
+  };
+
+  var checkRevert = function(event, ui) {
+    if (this.wigetParent === undefined)
+      {
+        return true;
+      }
+
+      return false;
+  };
+
+
+  $(function() {
+    $( "#draggable" ).draggable({drag: onDrag, stop: onEnd, revert: checkRevert});
+      $( "#temp2" ).droppable({
+      activeClass: "ui-state-default",
+      hoverClass: "ui-state-hover",
+      drop: function( event, ui ) {
+        $( this )
+          .addClass( "ui-state-highlight" )
+          .find( "p" )
+            .html( "Dropped!" );
+
+       }
+    });
+  });
+
+  </script>
+</head>
+
+<svg id="svg" version="1.1" width="600px" height="600px" xmlns="http://www.w3.org/2000/svg">
+  </svg>
+<body>
+
+  <script type="text/javascript">
+    var svg = document.getElementById("svg")
+    var textarea = SVGIE.textarea(svg, { width: 600 }, "hello");
+
+  </script>
+ 
+<div id="draggable" class="draggable ui-widget-content">
+  <svg>
+  <circle cx="100" cy="100" r="50" stroke-width="1" stroke="#000" fill="#ccc" />
+  </circle>
+  <foreignObject>
+  <input type="text" id="input"> </input>
+  </foreignObject>
+  </svg>
+  <p>Drag me around</p>
+</div>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" id="temp2" preserveAspectRatio="xMidYMid meet">
+  <title>Scalable Vector Graphics (SVG) Demo</title>
+  <circle cx="100" cy="100" r="50" stroke-width="1" stroke="#000" fill="#ccc" />
+  <rect id="temp" x="200" y="50" width="250" height="100" rx="5" ry="5"  stroke="#000" stroke-width="1" fill="#ccc" />
+  <text x="78" y="100" font-family="helvetica, sans-serif" font-size="16" fill="#000">Circle</text>
+  <text x="260" y="100" font-family="helvetica, sans-serif" font-size="16" fill="#000">Rounded Rectangle</text>
+</svg>
+ 
+ 
+</body>
+</html>
