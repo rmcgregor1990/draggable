@@ -6,92 +6,128 @@
   <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.css">
   <script src="js/jquery-1.10.2.js"></script>
   <script src="js/jquery-ui-1.10.4.custom.js"></script>
-  <script src="js/svg-input-elements.js"></script>  
+  <script src="js/svg-input-elements.js"></script>
   <style>
-  #draggable { width: 150px; height: 150px; padding: 0.5em; }
+      #draggable { width: 150px; height: 150px; padding: 0.5em; position: absolute;}
+      #draggable2 { width: 150px; height: 150px; padding: 0.5em; position: absolute;}
   </style>
   <script>
 
-var bob = {'child': null};
+    var bob = {'child': null, 'position': {'left':500, 'top':0 }};
 
-  var snapPositions = [{'left':30, 'top':40}];
-  var snapParents = [{'left':30, 'top':40, 'id': bob}];
+    var snapParents;
 
-  function snapPosition(position, child) {
-      for (var i = snapPositions.length - 1; i >= 0; i--) {
-          var dist = Math.sqrt(Math.pow((position.left-snapParents[i].left), 2) + Math.pow((position.top-snapParents[i].top), 2));
-          if (dist < 150) {
-            position.left = snapParents[i].left;
-            position.top = snapParents[i].top;
-            snapParents[i].id.child = child;
-            child.wigetParent = snapParents[i].id;
-          }
-          else
+
+function snapPosition(position, child) {
+      var ret_pos = {'left':position.left, 'top':position.top};
+      for (var i = snapParents.length - 1; i >= 0; i--) {
+          if (snapParents[i].id !== child)
           {
-            child.wigetParent = undefined;
+
+              var pLeft = snapParents[i].id.position().left;
+              var pTop = snapParents[i].id.position().top + 150;
+              var dist = Math.sqrt(Math.pow((position.left-pLeft), 2) + Math.pow((position.top-pTop), 2));
+              if (dist < 150) {
+                ret_pos.left = pLeft;
+                ret_pos.top = pTop;
+                snapParents[i].id.data("child", child);
+                child.data("wigetParent", snapParents[i].id);
+                child.wigetParent = snapParents[i].id;
+                break;
+            }
+            else
+            {
+                snapParents[i].id.data("child", null);
+                child.data("wigetParent", null);
+            }
           }
-          return position;
-      };
-  };
+    };
+    return ret_pos;
+}
 
 
+var onDrag =  function(event, ui) {
+  var ret = snapPosition(ui.offset, $(this));
+  console.log(ret.left - ui.offset.left);
+  ui.position.left = ui.position.left + ret.left - ui.offset.left;
+  ui.position.top = ui.position.top + ret.top - ui.offset.top;
 
-  var onDrag =  function(event, ui) {
-          ui.position = snapPosition(ui.position, this);
-      };
 
-  var onEnd = function() {
+};
+
+
+var onDrag2 = function(event, ui) {
+   if ($(this).data("child") !== undefined && $(this).data("child") !== null)
+   {
+
+    var ret_pos = {'left':ui.position.left, 'top':ui.position.top};
+    ret_pos.top += 150;
+    $(this).data("child").css(ret_pos);
+
+}
+};
+
+var onEnd = function() {
       //$(this).offset({'top': 100, 'left': 100});
   };
 
   var checkRevert = function(event, ui) {
-    if (this.wigetParent === undefined)
-      {
+    if ($(this).data("wigetParent") === undefined || $(this).data("wigetParent") == null)
+    {
         return true;
-      }
+    }
 
-      return false;
-  };
+    return false;
+};
 
 
-  $(function() {
-    $( "#draggable" ).draggable({drag: onDrag, stop: onEnd, revert: checkRevert});
-      $( "#temp2" ).droppable({
+$(function() {
+    snapParents = [{'id': $('#draggable2')}];
+    $( "#draggable" ).draggable({drag: onDrag, stop: onEnd});
+    $( "#draggable2" ).draggable({drag: onDrag2});
+
+    $( "#temp2" ).droppable({
       activeClass: "ui-state-default",
       hoverClass: "ui-state-hover",
       drop: function( event, ui ) {
         $( this )
-          .addClass( "ui-state-highlight" )
-          .find( "p" )
-            .html( "Dropped!" );
+        .addClass( "ui-state-highlight" )
+        .find( "p" )
+        .html( "Dropped!" );
 
-       }
-    });
-  });
+    }
+});
 
-  </script>
+});
+
+</script>
 </head>
 
 <svg id="svg" version="1.1" width="600px" height="600px" xmlns="http://www.w3.org/2000/svg">
-  </svg>
+</svg>
 <body>
 
   <script type="text/javascript">
     var svg = document.getElementById("svg")
     var textarea = SVGIE.textarea(svg, { width: 600 }, "hello");
 
-  </script>
- 
+</script>
+
 <div id="draggable" class="draggable ui-widget-content">
   <svg>
-  <circle cx="100" cy="100" r="50" stroke-width="1" stroke="#000" fill="#ccc" />
+      <circle cx="100" cy="100" r="50" stroke-width="1" stroke="#000" fill="#ccc" />
   </circle>
-  <foreignObject>
-  <input type="text" id="input"> </input>
-  </foreignObject>
-  </svg>
-  <p>Drag me around</p>
+</svg>
+<input type="text" id="123"></input>
 </div>
+
+<div id="draggable2" class="draggable ui-widget-content">
+  <svg>
+      <circle cx="100" cy="100" r="50" stroke-width="1" stroke="#000" fill="#ccc" />
+  </circle>
+</svg>
+</div>
+
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" id="temp2" preserveAspectRatio="xMidYMid meet">
   <title>Scalable Vector Graphics (SVG) Demo</title>
   <circle cx="100" cy="100" r="50" stroke-width="1" stroke="#000" fill="#ccc" />
@@ -99,7 +135,7 @@ var bob = {'child': null};
   <text x="78" y="100" font-family="helvetica, sans-serif" font-size="16" fill="#000">Circle</text>
   <text x="260" y="100" font-family="helvetica, sans-serif" font-size="16" fill="#000">Rounded Rectangle</text>
 </svg>
- 
- 
+
+
 </body>
 </html>
