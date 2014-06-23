@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+</head>
+  <meta charset="utf-8">
+  <title>jQuery UI Draggable - Default functionality</title>
+  <script src="js/jquery-1.10.2.js"></script>
+  <script src="js/jquery-ui-1.10.4.custom.js"></script>
+  <script src="js/svg-input-elements.js"></script>
+  <script src="js/svg.js"></script>
+  <script src="js/svg.draggable.js"></script>
+
+  <svg id="drawing" height="300" width="300"> </svg>
+  <script>
+
+  var draw = SVG('drawing').size(300,300);
+var rect = draw.rect(100,100).attr({fill: '#f06'});
+
+rect.draggable();
+
+
+  </script>
+</meta>
+</body>
+</html>
