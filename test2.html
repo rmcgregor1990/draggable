@@ -8,15 +8,57 @@
   <script src="js/jquery-ui-1.10.4.custom.js"></script>
   <script src="js/svg-input-elements.js"></script>
   <script src="js/svg.js"></script>
+  <script src="js/svg.foreignobject.js"></script>
   <script src="js/svg.draggable.js"></script>
-
-  <svg id="drawing" height="300" width="300"> </svg>
+  <script src="js/svgRenderer.js"></script>
+  <svg id="drawing" height="1000" width="1000"> </svg>
   <script>
 
-  var draw = SVG('drawing').size(300,300);
-var rect = draw.rect(100,100).attr({fill: '#f06'});
+  var svgRen = new SvgRenderer("drawing");
+  svgRen.addElement([50,50]);
+  svgRen.addElement([100,200]);
+  svgRen.addElement([100,300]);
+  svgRen.addElement([100,400]);
+  svgRen.addElement([100,500]);
 
-rect.draggable();
+
+//  var draw = SVG('drawing');
+// var rect = draw.rect(100,100).attr({fill: '#f06'});
+// var circle = draw.circle(50).attr({fill: '#f05'});
+
+// var fobj =draw.foreignObject(100,300).attr({id:'fobj'});
+
+// fobj.appendChild("input", {id: 'mydiv', size:10});
+
+// var nested = draw.nested();
+
+// var rect_nest = nested.rect(100, 100);
+// var fobj2 = nested.foreignObject(100,300).attr({id:'fobj'});
+// fobj2.appendChild("input", {id: 'mydiv', size:10});
+
+
+
+// nested.draggable({}, rect_nest);
+
+// fobj.animate(3000).move(100, 100);
+
+// circle.move(300,0);
+// circle.draggable();
+
+// var group = draw.group();
+
+// var set = draw.set();
+
+
+// group.add(rect);
+// group.add(fobj);
+
+// group.draggable({}, rect);
+
+
+
+// console.log(circle.y());
+
 
 
   </script>
