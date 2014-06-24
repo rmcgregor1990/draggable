@@ -49,7 +49,17 @@ SvgRenderer.prototype = {
         frame.dragstart = this._elementOnStartDrag;
         frame.snapPoints = [{x:50, y:35, child:null}];
 
+        frame.extend = function(direction) {
+            var points = new SVG.PointArray(this.array);
+            points.value[1][0] += direction[0];
+            points.value[2][0] += direction[0];
+            points.value[4][1] += direction[1];
+            points.value[5][1] += direction[1];
+
+            this.animate(3000).plot([[0,0], [120,0], [120,30], [30,37], [300, 120], [0, 120]]);
+        }
         this.elements.push(frame);
+        return frame;
     },
 
     _groupSnap: function(child) {
