@@ -14,9 +14,10 @@ function SvgRenderer(svg_element) {
 SvgRenderer.prototype = {
     elements : [],
     frames: [],
-    sequentialFrames : [],
+    serialFrames : [],
     parallelFrames : [],
     parentThis: undefined,
+    snapPoints: [],
 
     init: function() {
         parentThis = this;
@@ -73,10 +74,19 @@ SvgRenderer.prototype = {
     addParallelFrame: function (pos, colour) {
         if (colour === undefined) colour = '#ff0011';
 
-        var frame = new SvgRenderer.ParallelFrame(this.canvas);
+        var frame = new SvgRenderer.ParallelFrame;
+        frame.init();
+        this.canvas.add(frame);
         frame.plotPoly();
         frame.setPolyAttrs({ fill: colour, 'fill-opacity': 0.8, stroke: '#000', 'stroke-width': 7});
-        frame.svgGroup.move(pos[0], pos[1]);
+        frame.initDraggable(frame.svgPolygon);
+        frame.move(pos[0], pos[1]);
+        frame.dragmove = this._elementOnDrag;
+        frame.dragend = this._elementOnStopDrag;
+        frame.beforedrag = this._elementOnStartDrag;
+        this.parallelFrames.push(frame);
+
+        return frame;
     },
 
     addFrame: function(pos, colour) {
@@ -111,34 +121,28 @@ SvgRenderer.prototype = {
             this.children()[0].animate(3000).plot(points);
         }
 
-
         this.elements.push(group);
         this.parallelFrames.push(group);
         return group;
     },
 
     _groupSnap: function(child) {
-        for (var i = parentThis.elements.length - 1; i >= 0; i--) {
-            var element = parentThis.elements[i];
-            if (element !== child) {
-                for (var j = element.snapPoints.length - 1; j >= 0; j--) {
-                    snapPoint = element.snapPoints[j];
-                    if (snapPoint.child === null) {
-                        var dist = Math.sqrt(Math.pow(child.x()-(snapPoint.x+element.x()), 2) + Math.pow(child.y()-(snapPoint.y+element.y()), 2));
-                        if (dist < parentThis.snapDistance) {
-                            var dx = (snapPoint.x+element.x())-child.x();
-                            var dy = (snapPoint.y+element.y())-child.y();
-                            child.dmove(dx, dy);
-                            return {parent: element, node: snapPoint};
-                        }
-                        else {
-                        }
-                    }
+        for (var i = 0; i < this.snapPoints.length; i++) {
+            var snapPoint = this.snapPoints[i];
+            if (snapPoint.parent !== child)
+            {
+                var dist = Math.sqrt(Math.pow(child.x()-snapPoint.x, 2) + Math.pow(child.y()-snapPoint.y, 2));
+                if (dist < parentThis.snapDistance) {
+                    var dx = (snapPoint.x)-child.x();
+                    var dy = (snapPoint.y)-child.y();
+                    child.dmove(dx, dy);
+                    return snapPoint;
+                }
+                else {
                 }
             }
         }
-
-        return null;
+        return undefined;
     },
 
 
@@ -207,119 +211,290 @@ SvgRenderer.prototype = {
     },
 
     _elementOnDrag: function(delta, event) {
-
-        this.remember('snap_parent', parentThis._groupSnap(this));
-        var child_set = this.getChildren();
-        var parent_pos = {x:this.x(), y:this.y()};
-        child_set.each(function(i) {
-            var offset = this.remember('parent_offset');
-            this.move(parent_pos.x + offset.x, parent_pos.y + offset.y);
-        });
+        this.remember('snapPoint', parentThis._groupSnap(this));
     },
 
     _elementOnStartDrag: function(delta, event) {
-        var child_set = this.getChildren();
-        var parent_pos = {x:this.x(), y:this.y()};
         this.front();
-        this.remember('snap_parent', null);
-        child_set.each(function(i) {
-            this.remember('parent_offset', {x: this.x()-parent_pos.x, y:this.y()-parent_pos.y});
-            this.front();
-        });
+        //do group disconnection, this elememt should now be on the top level
+        if (this.parent.removeChild !== undefined) {
+            this.parent.removeChild(this, parentThis.canvas);
+        }
+        //get the possible snap points
+        parentThis.updateSnapPoints();
+        
     },
 
     _elementOnStopDrag: function(delta, event) {
-        if (this.remember('snap_parent') !== null){
-            //this.remember('snap_parent').node.child = this;
-            this.parentObject = this.remember('snap_parent').parent;
-            this.parentObject.addChild(this);
+        if (this.remember('snapPoint') !== undefined){
+            var p = this.remember('snapPoint');
+            p.parent.addChild(this, p.number);
         }
         else
         {
-            if (this.parentObject !== null){
-                this.parentObject.removeChild(this);
-                this.parentObject = null;
-            }
         }
 
-        this.forget('snap_parent');
+        for (var i = 0; i < parentThis.snapPoints.length; i++) {
+            var p = parentThis.snapPoints[i];
+            p.marker.remove();
+        };
+        this.forget('snapPoint');
     },
 
+    updateSnapPoints: function() {
+        this.snapPoints = [];
+        for (var i = 0; i < this.parallelFrames.length; i++) {
+            var frame = this.parallelFrames[i];
+            this.snapPoints = this.snapPoints.concat(frame.getSnapPoints());
+        }
 
+        for (var i = 0; i < this.serialFrames.length; i++) {
+            var frame = this.serialFrames[i];
+            this.snapPoints = this.snapPoints.concat(frame.getSnapPoints());
+        }
+
+        for (var i = 0; i < this.snapPoints.length; i++) {
+            var p = this.snapPoints[i];
+            p.marker = this.canvas.circle(20).fill("#00ff00").move(p.x,p.y);
+        };
+    }
 }
 
 
-SvgRenderer.ParallelFrame = function(svg_canvas) {
-    this.parentSvg = svg_canvas;
-    this.svgGroup = svg_canvas.group();
-    this.svgPolygon = svg_canvas.polygon();
-    this.svgGroup.add(this.svgPolygon);
-    this.svgGroup.draggable();
-    this.headerHeight = 30;
-    this.childSpacing = 40;
+// Parent Object for all Frame Types
+SvgRenderer.GenericFrame = SVG.invent({
+    create: 'g',
+    inherit: SVG.G,
+    extend: 
+    {
+        initDraggable: function(drag_handle) {
+            this.draggable({}, drag_handle);
+        },
 
-    //this = Object.create(svg_canvas.group());
-}
+        addChild : function(child, snap_no) {
+            //New child at the end
+            if (snap_no === undefined || snap_no >= this.childNodes.length) {
+                this.childNodes.push(child);
+            }
+            //move existing child at this location to the end
+            else {
+                var temp = this.childNodes[snap_no];
+                this.childNodes[snap_no] = child;
+                this.childNodes.push(temp);
+            }
+                //the child will now be relative to this group, so needs a change of coord systems
+                var pos = this.absPos()
+                child.dmove(-pos.x, -pos.y);
+                this.add(child);
+                this.update();
+        },
+
+        removeChild : function(child, new_container) {
+            var index = this.childNodes.indexOf(child);
+            this.childNodes.splice(index, 1);
+            if (new_container !== undefined) {
+                
+                //child needs to adjusted to the new group relative offset
+                var new_box = new_container.rbox();
+                var parent_pos = this.absPos();
+                var dx = parent_pos.x - new_box.x;
+                var dy = parent_pos.y - new_box.y;
+                child.dmove(dx, dy);
+                new_container.add(child);
+            }
+            this.update();
+        },
+
+        getChildSet : function() {
+            var set = this.parent.set();
+            for (var i = this.childNodes.length - 1; i >= 0; i--) {
+                set.add(this.childNodes[i]);
+            };
+
+            return set;
+        },
 
 
-SvgRenderer.ParallelFrame.prototype = {
-        children: [],
-        parentSvg: null,
-        svgGroup: null,
-        svgPolygon: null,
-        headerHeight: 30,
-        childSpacing: 40,
-        points : [[0,0], [120,0], [120,30], [30,30], [30, 120], [120, 120], [120, 145],  [0, 145]],
 
+        absPos : function() {
+            var t = this.rbox();
+            return {x:t.x, y:t.y};
+        },
+
+        update : function() {
+            var obj = this;
+            do {
+                obj.reorderChildren();
+                obj.resizeToChildren();
+                obj = obj.parent;
+            } while (obj.resizeToChildren !== undefined);
+        },
+
+        reorderChildren : function() {
+        },
+
+        resizeToChildren : function() {
+        }
+    }
+})
+
+
+//Frame Elements are extentions of SVG groups and also inherit from SVG elements
+SvgRenderer.ParallelFrame = SVG.invent({
+    create: 'g',
+    inherit:  SvgRenderer.GenericFrame,
+
+    extend: 
+    {
+        init: function() {
+            this.childNodes= [];
+            this.parentSvg= null;
+            this.svgGroup= null;
+            this.svgPolygon= null;
+            this.dragHandle= null;
+            this.headerHeight= 30;
+            this.childSpacing= 40;
+            this.childStart= {x:30, y: 30};
+            this.points= new SVG.PointArray([[0,0], [120,0], [120,30], [30,30], [30, 120], [120, 120], [120, 145],  [0, 145]]);
+        },
 
         setPolyAttrs: function(attrs) {
-            this.svgPolygon.attr(attrs);
+            if (this.svgPolygon !== null) {
+                this.svgPolygon.attr(attrs);
+            }
         },
 
         plotPoly : function(points) {
             if (points === undefined) points = this.points;
+            if (this.svgPolygon === null) 
+            {
+                this.svgPolygon = this.put(new SVG.Polygon);
+            }
             this.svgPolygon.plot(points);
         },
 
         getSnapPoints : function() {
             var points = [];
-            var max_y = 0, max_x = 0;
-            for (var i = 0; i < this.children.length; i++) {
-                var child = this.children[i];
-                max_y = this.y();
-                max_x = this.x();
-                points.push({x: this.x(), y:this.y(), parent: this, number: i});
+            var absPos = this.absPos();
+            var max_y = absPos.y + this.childStart.y, max_x = absPos.x + this.childStart.x;
+            for (var i = 0; i < this.childNodes.length; i++) {
+                var child = this.childNodes[i];
+                points.push({x: absPos.x + child.x(), y: absPos.y + child.y(), parent: this, number: i});
+                max_y = absPos.y + child.y() + child.bbox().height;
+                max_x = absPos.x + child.x() + child.bbox().width;
             }
+
             //add extra empty point at the end
-            points.push({x: max_x + this.childSpacing, y: this.headerHeight, parent: parent, number: i});
+            points.push({x: max_x + this.childSpacing, y: absPos.y + this.childStart.y, parent: this, number: i});
+
+            return points;
         },
 
-        addChild : function(snap_no, child) {
-            //New child at the end
-            if (snap_no >= this.children.length) {
-                this.children.push(child);
-            }
-            //move existing child at this location to the end
-            else {
-                var temp = this.children[snap_no];
-                this.children[snap_no] = child;
-                this.children.push(temp);
-            }
-        },
-
-        removeChild : function(child) {
-            var index = this.children.indexOf(child);
-            this.children.splice(index, 1);
+        reorderChildren : function() {
+            var x_count = this.childStart.x;
+            for (var i = 0; i < this.childNodes.length; i++) {
+                var child = this.childNodes[i];
+                child.move(x_count, this.headerHeight);
+                x_count += child.bbox().width + this.childSpacing;
+            };
         },
 
         resizeToChildren : function() {
-            var set = this.parentSvg.set();
-            for (var i = this.children.length - 1; i >= 0; i--) {
-                set.add(this.children[i]);
-            };
+            var set = this.getChildSet();
             var box = set.bbox();
+            var points = this.points;
+            points.value[1][0] = 30 + box.width + 100;
+            points.value[2][0] = 30 + box.width + 100;
+            points.value[4][1] = 40 + box.height;
+            points.value[5][1] = 40 + box.height;
+            points.value[6][1] = 55 + box.height;
+            points.value[7][1] = 55 + box.height;
 
-
+            this.plotPoly(points);
         }
-}
+    }
+})
+
+
+
+
+//Serial stacking Frame
+SvgRenderer.SerialFrame = SVG.invent({
+    create: 'g',
+    inherit: SvgRenderer.GenericFrame,
+
+    extend:
+    {
+       init: function() {
+            this.childNodes= [];
+            this.parentSvg= null;
+            this.svgGroup= null;
+            this.svgPolygon= null;
+            this.dragHandle= null;
+            this.headerHeight= 30;
+            this.childSpacing= 20;
+            this.childStart= {x:30, y: 0};
+            this.points= new SVG.PointArray([[0,0], [120,0], [120,30], [30,30], [30, 120], [120, 120], [120, 145],  [0, 145]]);
+        },
+
+
+        setPolyAttrs: function(attrs) {
+            if (this.svgPolygon !== undefined) {
+                this.svgPolygon.attr(attrs);
+            }
+        },
+
+        plotPoly : function(points) {
+            if (points === undefined) points = this.points;
+            if (this.svgPolygon === null) 
+            {
+                this.svgPolygon = this.put(SVG.Polygon);
+            }
+            this.svgPolygon.plot(points);
+        },
+
+        getSnapPoints : function() {
+            var points = [];
+            var max_y = this.y() + this.childStart.y, max_x = this.x() + this.childStart.x;
+            for (var i = 0; i < this.childNodes.length; i++) {
+                var child = this.childNodes[i];
+                points.push({x: this.x() + child.x(), y: this.y() + child.y(), parent: this, number: i});
+                max_y = this.y() + child.y() + child.bbox().height;
+                max_x = this.x() + child.x() + child.bbox().width;
+            }
+            //add extra empty point at the end
+            points.push({x: this.x() + this.childStart.x, y: max_y + this.childSpacing, parent: this, number: i});
+
+            return points;
+        },
+
+        reorderChildren : function() {
+            var y_count = this.childStart.y;
+            for (var i = 0; i < this.childNodes.length; i++) {
+                var child = this.childNodes[i];
+                child.move(0, y_count);
+                y_count += child.bbox().height + this.childSpacing;
+            };
+        },
+
+        resizeToChildren : function() {
+            var set = this.getChildSet();
+            var box = set.bbox();
+            var points = this.points;
+            points.value[1][0] = 30 + box.width + 100;
+            points.value[2][0] = 30 + box.width + 100;
+            points.value[4][1] = 40 + box.height;
+            points.value[5][1] = 40 + box.height;
+            points.value[6][1] = 55 + box.height;
+            points.value[7][1] = 55 + box.height;
+
+            this.plotPoly(points);
+        }
+    }
+})
+
+
+
+
+
 
