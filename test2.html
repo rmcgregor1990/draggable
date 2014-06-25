@@ -14,14 +14,18 @@
   <svg id="drawing" height="1000" width="1000"> </svg>
   <script>
 
-  var svgRen = new SvgRenderer("drawing");
-  //svgRen.addElement([50,50]);
-  ////svgRen.addElement([100,200]);
-  //svgRen.addElement([100,300]);
+  var svgRen = new SvgRenderer($('#drawing')[0]);
+  svgRen.addTerminalState([50,50], "state1", [{name:"Current"}, {name: "Time"}]);
+  svgRen.addTerminalState([100,200]);
+  svgRen.addTerminalState([100,300]);
+  svgRen.addTerminalState([100,200]);
+  svgRen.addTerminalState([100,300]);
+svgRen.addParallelFrame([300,300]);
 
-  var frame = svgRen.addFrame();
+svgRen.addFrame();
+svgRen.addFrame();
 
-  frame.extend([50,40]);
+
 
 
 //  var draw = SVG('drawing');
