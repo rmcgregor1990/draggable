@@ -15,11 +15,11 @@
   <script>
 
   var svgRen = new SvgRenderer($('#drawing')[0]);
-  //svgRen.addTerminalState([50,50], "state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]);
-  //svgRen.addTerminalState([100,200]);
+  svgRen.addTerminalState([50,50], "state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]);
+  svgRen.addTerminalState([100,200]);
   //.addTerminalState([100,300]);
-  //svgRen.addTerminalState([100,200]);
-  //svgRen.addTerminalState([100,300]);
+  svgRen.addTerminalState([100,200]);
+  svgRen.addTerminalState([100,300]);
   //
 var frames = []
 frames.push(svgRen.addParallelFrame([300,300]));

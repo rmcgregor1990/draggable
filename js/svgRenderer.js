@@ -23,20 +23,6 @@ SvgRenderer.prototype = {
         parentThis = this;
     },
 
-    addGroup: function() {
-        var group = this.canvas.group();
-        group.dragmove = this._elementOnDrag;
-        group.dragend = this._elementOnStopDrag;
-        group.dragstart = this._elementOnStartDrag;
-        group.childSet = this.canvas.set();
-        group.addChild = this._addChild;
-        group.removeChild = this._removeChild;
-        group.getChildren = this._getChildren;
-        group.parentObject = null;
-
-        return group;
-    },
-
 
     addTerminalState: function(pos, name, args, colour) {
         if (colour === undefined) colour = '#110066';
@@ -45,7 +31,7 @@ SvgRenderer.prototype = {
 
         var input_height = args.length*30;
 
-        var group = this.addGroup();
+        var group = this.canvas.group();
         var rect = this.canvas.rect(100, 50 + input_height).attr({ fill: colour, 'fill-opacity': 0.6, stroke: '#001', 'stroke-width': 4});
         var fobj = this.canvas.foreignObject(100, input_height).attr({id:'fobj_'+name}).move(0,30);
 
@@ -62,14 +48,11 @@ SvgRenderer.prototype = {
         groupHandle.add(text);
         group.add(groupHandle);
         group.add(fobj);
-        group.draggable(this.areaConstaint, groupHandle);
-
-        var bbox = group.bbox();
-        group.snapPoints = [{x:bbox.x, y:bbox.y2, child:null}];
-
-        group.move(pos[0], pos[1]);
-        this.elements.push(group);
+        group.dragHandle = groupHandle;
+        var frame = this.addSerialFrame(group);
+        frame.move(pos[0], pos[1])
     },
+
 
     addParallelFrame: function (pos, colour) {
         if (colour === undefined) colour = '#ff0011';
@@ -79,52 +62,33 @@ SvgRenderer.prototype = {
         this.canvas.add(frame);
         frame.plotPoly();
         frame.setPolyAttrs({ fill: colour, 'fill-opacity': 0.8, stroke: '#000', 'stroke-width': 7});
-        frame.initDraggable(frame.svgPolygon);
-        frame.move(pos[0], pos[1]);
+        frame.dragHandle = frame.svgPolygon;
+        var serial_frame = this.addSerialFrame(frame);
+        serial_frame.move(pos[0], pos[1]);
+        return frame;
+    },
+
+
+    addSerialFrame: function (first_child) {
+
+        var frame = new SvgRenderer.SerialFrame;
+        frame.init();
+        this.canvas.add(frame);
+        frame.addChild(first_child);
+        var dragHandle = first_child;
+
+        if (first_child.dragHandle !== undefined) {
+            dragHandle = first_child.dragHandle;
+        }
+
+        frame.initDraggable(dragHandle);
         frame.dragmove = this._elementOnDrag;
         frame.dragend = this._elementOnStopDrag;
         frame.beforedrag = this._elementOnStartDrag;
-        this.parallelFrames.push(frame);
 
         return frame;
     },
 
-    addFrame: function(pos, colour) {
-        if (colour === undefined) colour = '#ff0011';
-
-        var group = this.addGroup();
-        var frame = this.canvas.polygon();
-        var points = [[0,0], [120,0], [120,30], [30,30], [30, 120], [120, 120], [120, 145],  [0, 145]];
-        frame.points = points;
-        frame.plot(points);
-        frame.attr({ fill: colour, 'fill-opacity': 0.8, stroke: '#000', 'stroke-width': 7});
-        group.add(frame)
-        group.draggable(this.areaConstaint);
-        group.snapPoints = [{x:35, y:35, child:null}, {x:300, y:35, child:null}];
-
-        group.onAddChild = function(child) {
-            this.resizeToChildren();
-        }
-
-        group.resizeToChildren = function() {
-            var child_set = this.getChildren();
-            var box = child_set.bbox();
-
-            var points = this.children()[0].array;
-            points.value[1][0] = 30+ box.width + 100;
-            points.value[2][0] = 30+ box.width + 100;
-            points.value[4][1] = 40+ box.height;
-            points.value[5][1] = 40+ box.height;
-            points.value[6][1] = 55+ box.height;
-            points.value[7][1] = 55+ box.height;
-
-            this.children()[0].animate(3000).plot(points);
-        }
-
-        this.elements.push(group);
-        this.parallelFrames.push(group);
-        return group;
-    },
 
     _groupSnap: function(child) {
         for (var i = 0; i < this.snapPoints.length; i++) {
@@ -210,9 +174,11 @@ SvgRenderer.prototype = {
         return childSet;
     },
 
+
     _elementOnDrag: function(delta, event) {
         this.remember('snapPoint', parentThis._groupSnap(this));
     },
+
 
     _elementOnStartDrag: function(delta, event) {
         this.front();
@@ -221,17 +187,14 @@ SvgRenderer.prototype = {
             this.parent.removeChild(this, parentThis.canvas);
         }
         //get the possible snap points
-        parentThis.updateSnapPoints();
-        
+        parentThis.updateSnapPoints(this);
+
     },
 
     _elementOnStopDrag: function(delta, event) {
         if (this.remember('snapPoint') !== undefined){
             var p = this.remember('snapPoint');
             p.parent.addChild(this, p.number);
-        }
-        else
-        {
         }
 
         for (var i = 0; i < parentThis.snapPoints.length; i++) {
@@ -241,21 +204,35 @@ SvgRenderer.prototype = {
         this.forget('snapPoint');
     },
 
-    updateSnapPoints: function() {
-        this.snapPoints = [];
-        for (var i = 0; i < this.parallelFrames.length; i++) {
-            var frame = this.parallelFrames[i];
-            this.snapPoints = this.snapPoints.concat(frame.getSnapPoints());
+    recurseSnapPoints: function(drag_element, parent_obj, points) {
+        if (parent_obj !== drag_element) {
+            for (var i = 0; i < parent_obj.children().length; i++) {
+                var child = parent_obj.children()[i];
+                if (child !== drag_element) {
+                    if (child instanceof SvgRenderer.GenericFrame) {
+                        points = points.concat(child.getSnapPoints());
+                        points = this.recurseSnapPoints(drag_element, child, points);
+                    }
+                }
+            };
         }
+        return points;
+    },
 
-        for (var i = 0; i < this.serialFrames.length; i++) {
-            var frame = this.serialFrames[i];
-            this.snapPoints = this.snapPoints.concat(frame.getSnapPoints());
-        }
+    updateSnapPoints: function(drag_element) {
+        this.snapPoints = [];
+        this.snapPoints = this.recurseSnapPoints(drag_element, parentThis.canvas, this.snapPoints);
+
+
 
         for (var i = 0; i < this.snapPoints.length; i++) {
             var p = this.snapPoints[i];
-            p.marker = this.canvas.circle(20).fill("#00ff00").move(p.x,p.y);
+            var gradient = this.canvas.gradient('linear', function(stop) {
+                stop.at({ offset: 0, color: '#000' })
+                stop.at({ offset: 1, color: '#fff' })
+            })
+            p.marker = this.canvas.circle(20).center(p.x,p.y).fill({color: gradient});
+            p.marker.attr({'fill-opacity': 0.6, stroke: '#003', 'stroke-width': 1});
         };
     }
 }
@@ -265,13 +242,14 @@ SvgRenderer.prototype = {
 SvgRenderer.GenericFrame = SVG.invent({
     create: 'g',
     inherit: SVG.G,
-    extend: 
+    extend:
     {
         initDraggable: function(drag_handle) {
             this.draggable({}, drag_handle);
         },
 
-        addChild : function(child, snap_no) {
+        addChild : function(child, snap_no, update) {
+            if (update === undefined) update = true;
             //New child at the end
             if (snap_no === undefined || snap_no >= this.childNodes.length) {
                 this.childNodes.push(child);
@@ -286,14 +264,17 @@ SvgRenderer.GenericFrame = SVG.invent({
                 var pos = this.absPos()
                 child.dmove(-pos.x, -pos.y);
                 this.add(child);
-                this.update();
+                if (update) {
+                    this.update();
+                }
         },
 
-        removeChild : function(child, new_container) {
+        removeChild : function(child, new_container, update) {
+            if (update === undefined) update = true;
             var index = this.childNodes.indexOf(child);
             this.childNodes.splice(index, 1);
             if (new_container !== undefined) {
-                
+
                 //child needs to adjusted to the new group relative offset
                 var new_box = new_container.rbox();
                 var parent_pos = this.absPos();
@@ -302,7 +283,9 @@ SvgRenderer.GenericFrame = SVG.invent({
                 child.dmove(dx, dy);
                 new_container.add(child);
             }
-            this.update();
+            if (update) {
+                this.update();
+            }
         },
 
         getChildSet : function() {
@@ -314,18 +297,21 @@ SvgRenderer.GenericFrame = SVG.invent({
             return set;
         },
 
-
-
         absPos : function() {
             var t = this.rbox();
             return {x:t.x, y:t.y};
         },
 
+        /**
+         * this is a recursive update which looks through all the parent objects of this instance
+         * @return {None}
+         */
         update : function() {
             var obj = this;
             do {
                 obj.reorderChildren();
                 obj.resizeToChildren();
+               // obj.mergeChildren();
                 obj = obj.parent;
             } while (obj.resizeToChildren !== undefined);
         },
@@ -334,6 +320,10 @@ SvgRenderer.GenericFrame = SVG.invent({
         },
 
         resizeToChildren : function() {
+        },
+
+        mergeChildren : function() {
+
         }
     }
 })
@@ -344,7 +334,7 @@ SvgRenderer.ParallelFrame = SVG.invent({
     create: 'g',
     inherit:  SvgRenderer.GenericFrame,
 
-    extend: 
+    extend:
     {
         init: function() {
             this.childNodes= [];
@@ -366,7 +356,7 @@ SvgRenderer.ParallelFrame = SVG.invent({
 
         plotPoly : function(points) {
             if (points === undefined) points = this.points;
-            if (this.svgPolygon === null) 
+            if (this.svgPolygon === null)
             {
                 this.svgPolygon = this.put(new SVG.Polygon);
             }
@@ -432,8 +422,8 @@ SvgRenderer.SerialFrame = SVG.invent({
             this.svgPolygon= null;
             this.dragHandle= null;
             this.headerHeight= 30;
-            this.childSpacing= 20;
-            this.childStart= {x:30, y: 0};
+            this.childSpacing= 15;
+            this.childStart= {x:10, y: 0};
             this.points= new SVG.PointArray([[0,0], [120,0], [120,30], [30,30], [30, 120], [120, 120], [120, 145],  [0, 145]]);
         },
 
@@ -446,7 +436,7 @@ SvgRenderer.SerialFrame = SVG.invent({
 
         plotPoly : function(points) {
             if (points === undefined) points = this.points;
-            if (this.svgPolygon === null) 
+            if (this.svgPolygon === null)
             {
                 this.svgPolygon = this.put(SVG.Polygon);
             }
@@ -455,16 +445,19 @@ SvgRenderer.SerialFrame = SVG.invent({
 
         getSnapPoints : function() {
             var points = [];
-            var max_y = this.y() + this.childStart.y, max_x = this.x() + this.childStart.x;
+            var absPos = this.absPos();
+            var max_y = absPos.y + this.childStart.y, max_x = absPos.x + this.childStart.x;
             for (var i = 0; i < this.childNodes.length; i++) {
                 var child = this.childNodes[i];
-                points.push({x: this.x() + child.x(), y: this.y() + child.y(), parent: this, number: i});
-                max_y = this.y() + child.y() + child.bbox().height;
-                max_x = this.x() + child.x() + child.bbox().width;
+                //points.push({x: absPos.x + child.x(), y: absPos.y + child.y(), parent: this, number: i});
+                max_y = absPos.y + child.y() + child.bbox().height;
+                max_x = absPos.x + child.x() + child.bbox().width;
             }
-            //add extra empty point at the end
-            points.push({x: this.x() + this.childStart.x, y: max_y + this.childSpacing, parent: this, number: i});
-
+            //add extra empty point at the end but only if there's currently only a single node
+            if (this.childNodes.length < 2)
+            {
+                points.push({x: absPos.x + this.childStart.x, y: max_y + this.childSpacing, parent: this, number: i});
+            }
             return points;
         },
 
@@ -477,18 +470,18 @@ SvgRenderer.SerialFrame = SVG.invent({
             };
         },
 
-        resizeToChildren : function() {
-            var set = this.getChildSet();
-            var box = set.bbox();
-            var points = this.points;
-            points.value[1][0] = 30 + box.width + 100;
-            points.value[2][0] = 30 + box.width + 100;
-            points.value[4][1] = 40 + box.height;
-            points.value[5][1] = 40 + box.height;
-            points.value[6][1] = 55 + box.height;
-            points.value[7][1] = 55 + box.height;
-
-            this.plotPoly(points);
+        mergeChildren : function() {
+            for (var i = 0; i < this.childNodes.length; i++) {
+                var childFrame = this.childNodes[i];
+                if (childFrame instanceof SvgRenderer.SerialFrame) {
+                    for (var j = 0; j < childFrame.childNodes.length; j++) {
+                        child = childFrame.childNodes[j];
+                        this.addChild(child, i + j, false);
+                    }
+                    this.removeChild(childFrame);
+                    childFrame.remove();
+                }
+            }
         }
     }
 })
