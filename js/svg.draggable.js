@@ -155,7 +155,6 @@
       else
       {
         handle.on('mousedown', start)
-        element.on('custom:stackdrag', start)
       }
 
 

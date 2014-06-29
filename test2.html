@@ -3,6 +3,20 @@
 <head>
 </head>
   <meta charset="utf-8">
+  <style type="text/css">
+label{
+    display: inline-block;
+    float: left;
+    clear: left;
+    width: 55px;
+    text-align: right;
+}
+input {
+  display: inline-block;
+  float: left;
+}
+</style>
+
   <title>Draggable</title>
   <script src="js/jquery-1.10.2.js"></script>
   <script src="js/svg.js"></script>
@@ -15,13 +29,16 @@
 
   <script>
 
+
+
   var svgRen = new SvgRenderer('drawing', '100%', '100%');
   var master = svgRen.addMasterFrame();
   var sideBar = svgRen.addSideBar();
-  sideBar.addChild(svgRen.addParallelFrame([0,0]));
-  sideBar.addChild(svgRen.addTerminalState([50,50], "state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
-  sideBar.addChild(svgRen.addTerminalState([50,50], "state2", [{name:"Current"}, {name: "Time"}, {name: 'another'}])); 
-  sideBar.addChild(svgRen.addTerminalState([50,50], "state3", [{name:"Current"}, {name: "Time"}, {name: 'another'}])); 
+  sideBar.addChild(svgRen.addParallelFrame());
+
+  sideBar.addChild(svgRen.addTerminalState("state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
+  sideBar.addChild(svgRen.addTerminalState("state2", [{name:"Current"}, {name: "Time"}, {name: 'another'}])); 
+  sideBar.addChild(svgRen.addTerminalState("state3", [{name:"Current"}, {name: "Time"}, {name: 'another'}])); 
 
   </script>
 </meta>

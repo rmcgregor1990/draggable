@@ -1,11 +1,12 @@
 
 
 function SvgRenderer(svg_element, width, height) {
+    this.snapDistance = 30;    
+    this.snapPointRadius = 10;
+
     this.height = height;
     this.width = width;
     this.canvas = SVG(svg_element).size(width, height);
-    this.snapDistance = 30;    
-    this.snapPointRadius = 10;
     parentThis = undefined;
     this.snapPoints =  [];
     this.snapPointGroup = undefined;
@@ -16,7 +17,6 @@ function SvgRenderer(svg_element, width, height) {
 
 SvgRenderer.prototype = {
 
-
     init: function() {
         parentThis = this;
     },
@@ -26,7 +26,7 @@ SvgRenderer.prototype = {
         frame.init();
         this.canvas.add(frame);
         frame.move(250,20);
-
+        this.masterframe = frame;
     },
 
     addSideBar: function() {
@@ -37,48 +37,25 @@ SvgRenderer.prototype = {
     },
 
 
-    addTerminalState: function(pos, name, args, colour) {
+    getCurrentTree: function() {
+
+    },
+
+
+    addTerminalState: function(name, args, colour) {
         if (colour === undefined) colour = 'lightblue';
         if (name === undefined) name = "tempname";
         if (args === undefined) args = [{name: 'bob'}, {name: 'bill'}];
 
-        var input_height = args.length*30;
-
-        var group = this.canvas.group();
-        var rect = this.canvas.rect(100, 30 + input_height).attr({ fill: colour, 'fill-opacity': 0.9, stroke: '#001', 'stroke-width': 4});
-        rect.radius(10);
-        var fobj = this.canvas.foreignObject(100, input_height).attr({id:'fobj_'+name}).move(0,30);
-
-        for (var i = args.length - 1; i >= 0; i--) {
-            arg = args[i];
-            fobj.appendChild("input", {id: arg.name, size:10, style:"width:20px"});
-
-        };
-        var text = this.canvas.text(function(add) {
-        add.tspan(name).newLine()}).move(10, 10);
-
-        text.font({
-          family:   'Helvetica'
-        , size:     14
-        , anchor:   'left'
-        , leading:  '1.5em'
-        , bold: true
-        , weight: 'bold'
-        });
-
-        var groupHandle = this.canvas.group();
-        groupHandle.add(rect);
-        groupHandle.add(text);
-        group.add(groupHandle);
-        group.add(fobj);
-        group.dragHandle = groupHandle;
-        var frame = this.addSerialFrame(group, this.addTerminalState, [pos, name, args, colour]);
-        frame.move(pos[0], pos[1]);
+        var terminalState = new SvgRenderer.TerminalState;
+        terminalState.init(name, args);
+        this.canvas.add(terminalState);
+        var frame = this.addSerialFrame(terminalState, this.addTerminalState, [name, args, colour]);
         return frame;
     },
 
 
-    addParallelFrame: function (pos, colour) {
+    addParallelFrame: function (colour) {
         if (colour === undefined) colour = '#ff0011';
 
         var frame = new SvgRenderer.ParallelFrame;
@@ -88,8 +65,7 @@ SvgRenderer.prototype = {
         frame.setPolyAttrs({ fill: colour, 'fill-opacity': 0.8, stroke: '#000', 'stroke-width': 3});
         frame.dragHandle = frame.svgPolygon;
         //everything is inside its own serial frame
-        var serial_frame = this.addSerialFrame(frame, this.addParallelFrame, [pos, colour]);
-        serial_frame.move(pos[0], pos[1]);
+        var serial_frame = this.addSerialFrame(frame, this.addParallelFrame, [colour]);
         return serial_frame;
     },
 
@@ -120,11 +96,9 @@ SvgRenderer.prototype = {
     _groupSnap: function(child) {
         for (var i = 0; i < this.snapPoints.length; i++) {
             var snapPoint = this.snapPoints[i];
-            if (snapPoint.parent !== child)
-            {
-               // var dist = (child.x()-snapPoint.x)*(child.x()-snapPoint.x) + (child.y()-snapPoint.y)*(child.y()-snapPoint.y);
+            if (snapPoint.parent !== child) {
                 if (snapPoint.bounds.inside(child.x(), child.y())) {
-                        if (snapPoint.snapTo === undefined || snapPoint.snapTo === true) {
+                    if (snapPoint.snapTo === undefined || snapPoint.snapTo === true) {
                         var dx = (snapPoint.x)-child.x();
                         var dy = (snapPoint.y)-child.y();
                         child.dmove(dx, dy);
@@ -210,6 +184,65 @@ SvgRenderer.prototype = {
         }
     }
 }
+
+
+//Terminal State class, based on a group
+SvgRenderer.TerminalState = SVG.invent({
+    create: 'g',
+    inherit: SVG.G,
+
+    extend:
+    {
+        init: function(name, args, colour) {
+            if (colour === undefined) colour = 'lightblue';
+
+            var input_height = args.length*30;
+            var terminalState = this;
+            terminalState.stateName = name;
+            var rect = this.rect(100, 30 + input_height).attr({ fill: colour, 'fill-opacity': 0.9, stroke: '#001', 'stroke-width': 4});
+            rect.radius(10);
+            var fobj = this.foreignObject(100, input_height).attr({id:'fobj'}).move(0,30);
+
+
+            for (var i = args.length - 1; i >= 0; i--) {
+                arg = args[i];
+                fobj.appendChild("label", {for: arg.name, innerText: arg.name});
+                fobj.appendChild("input", {id: arg.name, value: 0, size: 1});
+            };
+            var text = this.text(function(add) {
+            add.tspan(name).newLine()}).dx(5);
+
+            text.font({
+              family:   'Helvetica'
+            , size:     15
+            , anchor:   'left'
+            , leading:  '1.5em'
+            , bold: true
+            , weight: 'bold'
+            });
+
+            var groupHandle = this.group();
+            groupHandle.add(rect);
+            groupHandle.add(text);
+            terminalState.add(groupHandle);
+            terminalState.add(fobj);
+            fobj.front();
+            this.fobj = fobj;
+            terminalState.dragHandle = groupHandle;
+        },
+
+
+        getArgs: function () {
+            var arg_list = [];
+            for (var i = 0; i < this.fobj.node.childNodes.length; i++) {
+                var input = this.fobj.node.childNodes[i];
+                arg_list.push({name: input.id, value: input.value});
+            }
+
+            return arg_list;
+        },
+    }
+})
 
 
 // Parent Object for all Frame Types
@@ -302,6 +335,8 @@ SvgRenderer.GenericFrame = SVG.invent({
         }
     }
 })
+
+
 
 
 //Frame Elements are extentions of SVG groups and also inherit from SVG elements
