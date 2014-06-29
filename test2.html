@@ -16,17 +16,12 @@
   <script>
 
   var svgRen = new SvgRenderer('drawing', '100%', '100%');
-  svgRen.addTerminalState([50,50], "state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]);
-  svgRen.addTerminalState([100,200]);
-  //.addTerminalState([100,300]);
-  svgRen.addTerminalState([100,200]);
-  svgRen.addTerminalState([100,300]);
-  //
-var frames = []
-frames.push(svgRen.addParallelFrame([300,300]));
-frames.push(svgRen.addParallelFrame([0,0]));
-frames.push(svgRen.addParallelFrame([0,0]));
-frames.push(svgRen.addParallelFrame([0,0]));
+  var master = svgRen.addMasterFrame();
+  var sideBar = svgRen.addSideBar();
+  sideBar.addChild(svgRen.addParallelFrame([0,0]));
+  sideBar.addChild(svgRen.addTerminalState([50,50], "state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
+  sideBar.addChild(svgRen.addTerminalState([50,50], "state2", [{name:"Current"}, {name: "Time"}, {name: 'another'}])); 
+  sideBar.addChild(svgRen.addTerminalState([50,50], "state3", [{name:"Current"}, {name: "Time"}, {name: 'another'}])); 
 
   </script>
 </meta>

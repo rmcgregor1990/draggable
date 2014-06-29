@@ -4,7 +4,8 @@ function SvgRenderer(svg_element, width, height) {
     this.height = height;
     this.width = width;
     this.canvas = SVG(svg_element).size(width, height);
-    this.snapDistance = 800;    
+    this.snapDistance = 30;    
+    this.snapPointRadius = 10;
     parentThis = undefined;
     this.snapPoints =  [];
     this.snapPointGroup = undefined;
@@ -20,8 +21,19 @@ SvgRenderer.prototype = {
         parentThis = this;
     },
 
-    addSideBar: function(width) {
+    addMasterFrame: function() {
+        var frame = new SvgRenderer.MasterFrame;
+        frame.init();
+        this.canvas.add(frame);
+        frame.move(250,20);
 
+    },
+
+    addSideBar: function() {
+        var bar = new SvgRenderer.SidebarFrame;
+        this.canvas.add(bar);
+        bar.init();
+        return bar;
     },
 
 
@@ -60,8 +72,8 @@ SvgRenderer.prototype = {
         group.add(groupHandle);
         group.add(fobj);
         group.dragHandle = groupHandle;
-        var frame = this.addSerialFrame(group);
-        frame.move(pos[0], pos[1])
+        var frame = this.addSerialFrame(group, this.addTerminalState, [pos, name, args, colour]);
+        frame.move(pos[0], pos[1]);
         return frame;
     },
 
@@ -75,13 +87,14 @@ SvgRenderer.prototype = {
         frame.plotPoly();
         frame.setPolyAttrs({ fill: colour, 'fill-opacity': 0.8, stroke: '#000', 'stroke-width': 3});
         frame.dragHandle = frame.svgPolygon;
-        var serial_frame = this.addSerialFrame(frame);
+        //everything is inside its own serial frame
+        var serial_frame = this.addSerialFrame(frame, this.addParallelFrame, [pos, colour]);
         serial_frame.move(pos[0], pos[1]);
-        return frame;
+        return serial_frame;
     },
 
 
-    addSerialFrame: function (first_child) {
+    addSerialFrame: function (first_child, contructionFunction, constructionArgs) {
 
         var frame = new SvgRenderer.SerialFrame;
         frame.init();
@@ -98,6 +111,8 @@ SvgRenderer.prototype = {
         frame.dragend = this._elementOnStopDrag;
         frame.beforedrag = this._elementOnStartDrag;
 
+        frame.objectConstructor = contructionFunction.bind(this);
+        frame.constructionArgs = constructionArgs;  
         return frame;
     },
 
@@ -107,18 +122,20 @@ SvgRenderer.prototype = {
             var snapPoint = this.snapPoints[i];
             if (snapPoint.parent !== child)
             {
-                var dist = (child.x()-snapPoint.x)*(child.x()-snapPoint.x) + (child.y()-snapPoint.y)*(child.y()-snapPoint.y);
-                if (dist < parentThis.snapDistance) {
-                    var dx = (snapPoint.x)-child.x();
-                    var dy = (snapPoint.y)-child.y();
-                    child.dmove(dx, dy);
+               // var dist = (child.x()-snapPoint.x)*(child.x()-snapPoint.x) + (child.y()-snapPoint.y)*(child.y()-snapPoint.y);
+                if (snapPoint.bounds.inside(child.x(), child.y())) {
+                        if (snapPoint.snapTo === undefined || snapPoint.snapTo === true) {
+                        var dx = (snapPoint.x)-child.x();
+                        var dy = (snapPoint.y)-child.y();
+                        child.dmove(dx, dy);
+                    }
                     return snapPoint;
                 }
                 else {
                 }
             }
         }
-        return undefined;
+        return null;
     },
 
 
@@ -139,7 +156,12 @@ SvgRenderer.prototype = {
     },
 
     _elementOnStopDrag: function(delta, event) {
-        if (this.remember('snapPoint') !== undefined){
+        //if the element has never been dragged call the drag function once.
+        if (this.remember('snapPoint') === undefined) {
+            this.dragmove();
+        }
+
+        if (this.remember('snapPoint') !== null){
             var p = this.remember('snapPoint');
             p.parent.addChild(this, p.number);
         }
@@ -150,7 +172,7 @@ SvgRenderer.prototype = {
 
 
     recurseSnapPoints: function(drag_element, parent_obj, points) {
-        if (parent_obj !== drag_element) {
+        if (parent_obj !== drag_element && !(parent_obj instanceof SvgRenderer.SidebarFrame)) {
             for (var i = 0; i < parent_obj.children().length; i++) {
                 var child = parent_obj.children()[i];
                 if (child !== drag_element) {
@@ -177,12 +199,15 @@ SvgRenderer.prototype = {
         this.snapPointGroup = this.canvas.group();
         for (var i = 0; i < this.snapPoints.length; i++) {
             var p = this.snapPoints[i];
-            p.marker = this.snapPointGroup.circle(0);
-            p.marker.center(p.x,p.y).fill({color: gradient});
-            p.marker.attr({'fill-opacity': 0.6, stroke: '#003', 'stroke-width': 1});
-            this.snapPointGroup.add(p.marker);
-            p.marker.animate(500, SVG.easing.elastic).radius(10);
-        };
+            if (p.bounds === undefined) {
+                p.marker = this.snapPointGroup.circle(0);
+                p.marker.center(p.x,p.y).fill({color: gradient});
+                p.marker.attr({'fill-opacity': 0.6, stroke: '#003', 'stroke-width': 1});
+                p.bounds = this.canvas.defs().circle(this.snapDistance).center(p.x, p.y);
+                this.snapPointGroup.add(p.marker);
+                p.marker.animate(500, SVG.easing.elastic).radius(this.snapPointRadius);
+            }
+        }
     }
 }
 
@@ -200,14 +225,9 @@ SvgRenderer.GenericFrame = SVG.invent({
 
         addChild : function(child, index, update) {
             if (update === undefined) update = true;
-            //New child at the end
-            if (index === undefined || index >= this.childNodes.length) {
-                this.childNodes.push(child);
-            }
-            //move existing child at this location to the end
-            else {
+            if (index === undefined) index = this.childNodes.length;
+
                 this.childNodes.splice(index, 0, child);
-            }
                 //the child will now be relative to this group, so needs a change of coord systems
                 var pos = this.absPos()
                 child.dmove(-pos.x, -pos.y);
@@ -236,6 +256,19 @@ SvgRenderer.GenericFrame = SVG.invent({
             }
         },
 
+        clearChildren : function(update) {
+            if (update === undefined) update = true;
+
+            for (var i = 0; i < this.childNodes.length; i++) {
+                this.childNodes.remove();
+                this.childNodes.push();
+            }
+
+            if (update) {
+                this.update();
+            }
+        },
+
         getChildSet : function() {
             var set = this.set();
             for (var i = this.childNodes.length - 1; i >= 0; i--) {
@@ -246,8 +279,7 @@ SvgRenderer.GenericFrame = SVG.invent({
         },
 
         absPos : function() {
-            var t = this.rbox();
-            return {x:t.x, y:t.y};
+            return this.rbox();
         },
 
         /**
@@ -393,14 +425,13 @@ SvgRenderer.SerialFrame = SVG.invent({
 
     extend:
     {
-       maxChildren: 2,
-
        init: function() {
             this.childNodes= [];
             this.connectionLine = null;
             this.headerHeight= 30;
             this.childSpacing= 12;
             this.childStart= {x:10, y: 0};
+            this.maxChildren = 2
         },
 
         leftChild: function() {
@@ -429,15 +460,8 @@ SvgRenderer.SerialFrame = SVG.invent({
                 }
             }
 
-            this.childNodes.push(child);
-            //the child will now be relative to this group, so needs a change of coord systems
-            var pos = this.absPos()
-            child.dmove(-pos.x, -pos.y);
-            this.add(child);
 
-            if (update) {
-                this.update();
-            }
+            this.__proto__.__proto__.addChild.call(this, child, index);
         },
 
         setPolyAttrs: function(attrs) {
@@ -482,7 +506,7 @@ SvgRenderer.SerialFrame = SVG.invent({
                 var child = this.childNodes[i];
                 child.move(0, y_count);
                 y_count += child.bbox().height + this.childSpacing;
-            };
+            }
         },
 
         resizeToChildren : function() {
@@ -510,40 +534,140 @@ SvgRenderer.SidebarFrame = SVG.invent({
 
     extend:
     {
-       init: function(first_child) {
-            this.childNodes= [];
-            this.svgShape= null;
-            this.width = 100;
+       init: function() {
             this.childSpacing= 15;
-            this.childStart= {x:10, y: 0};
+            this.childStart= {x:10, y: 10};
+            this.padding ={x: 10, y: 10}
+            this.childNodes= [];
+
+            //Shape design
+            this.svgShape= this.rect(this.width, this.height);
+            this.svgShape.fill({opacity: 0.1});
+            this.svgShape.stroke({ color: '#000000', opacity: 0.8, width: 7 });
         },
 
 
         addChild : function(child, index, update) {
+            //-1 means remove this child from its parent entirely, this allows thing dragged onto the side bar to be deleted
+            if (index === -1) {
+                child.remove();
+            }
+            else
+            {
+                this.__proto__.__proto__.addChild.call(this, child, index, update);
+            }
+
+            var box = child.bbox();
+            child.dmove(-box.width - 40, 0);
+            child.animate(500).dmove(box.width + 40, 0);     
         },
 
         removeChild : function(child, new_container, update) {
+            var index = this.childNodes.indexOf(child);
+            this.__proto__.__proto__.removeChild.call(this, child, new_container, false);
+            var new_child = child.objectConstructor.apply(this, child.constructionArgs);
+            this.addChild(new_child, index);
         },
-
 
         setPolyAttrs: function(attrs) {
-        },
-
-        plotPoly : function(points) {
+            this.svgShape.attr(attrs);
         },
 
         getSnapPoints : function() {
-            return [];
+            var points = [];
+            var absPos = this.absPos();
+            // only one point for the entire sidebar.
+            points.push({x: absPos.cx, y: absPos.cy, bounds: this.svgShape, parent: this, number: -1, snapTo: false});
+
+            return points;
         },
 
         reorderChildren : function() {
+            var y_count = this.childStart.y;
+            for (var i = 0; i < this.childNodes.length; i++) {
+                var child = this.childNodes[i];
+                child.move(this.childStart.x, y_count);
+                y_count += child.bbox().height + this.childSpacing;
+            }
         },
 
         resizeToChildren : function() {
+            var set = this.getChildSet()
+            this.svgShape.width(set.bbox().width + this.childStart.x + this.padding.x);
+            this.svgShape.height(set.bbox().height + this.childStart.y + this.padding.y);
         }
     }
 })
 
+
+//Serial stacking Frame
+SvgRenderer.MasterFrame = SVG.invent({
+    create: 'g',
+    inherit: SvgRenderer.GenericFrame,
+
+    extend:
+    {
+       init: function() {
+            //tweekables
+            this.childStart= {x: 10, y: 10};
+            this.padding ={x: 10, y: 10}
+            this.emptyDimentions = {width: 100, height: 100};
+            //class vars
+            this.childNodes= [];
+            //Shapes
+            this.svgShape= this.rect(100, 100).move(0, 0);
+            this.svgShape.fill({opacity: 0.0});
+            this.svgShape.stroke({ color: '#000000', opacity: 1.0, width: 3, dasharray: [7, 7] });
+            this.add(this.svgShape);
+            // this.text("Parallel").leading(0).move(20, 25).font({
+            //                                                       family:   'Helvetica'
+            //                                                     , size:     20
+            //                                                     , anchor:   'left'
+            //                                                     , bold: true
+            //                                                     , weight: 'bold'
+            //                                                     });
+
+
+            // this.text("Sequential").rotate(90).leading(0).move(25, 0).font({
+            //                                                               family:   'Helvetica'
+            //                                                             , size:     20
+            //                                                             , anchor:   'left'
+            //                                                             , bold: true
+            //                                                             , weight: 'bold'
+            //                                                             });
+
+            //intial resize
+            this.resizeToChildren();
+        },
+
+        setPolyAttrs: function(attrs) {
+            this.svgShape.attr(attrs);
+        },
+
+        getSnapPoints : function() {
+            var points = [];
+            var absPos = this.absPos();
+            // only one point for the entire sidebar.
+            if (this.childNodes.length < 1) {
+                points.push({x: absPos.x + this.svgShape.x() + this.childStart.x, y: absPos.y + this.svgShape.y() + this.childStart.y, parent: this, number: 0});
+            }
+            return points;
+        },
+
+        resizeToChildren : function() {
+            var box;
+            if (this.childNodes.length == 0) {
+                box = this.emptyDimentions;
+            }
+            else {
+                box = this.getChildSet().bbox();
+            }
+            
+            this.svgShape.width(box.width + this.childStart.x + this.padding.x);
+            this.svgShape.height(box.height + this.childStart.y + this.padding.y);
+        }
+    }
+})
 
 
 
