@@ -1,126 +1,48 @@
 <!doctype html>
 <html lang="en">
 <head>
+    <link rel="stylesheet" href="draggable.css"/>
+</head>
   <meta charset="utf-8">
-  <title>jQuery UI Draggable - Default functionality</title>
-  <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.css">
+  <style type="text/css">
+label{
+    display: inline-block;
+    float: left;
+    clear: left;
+    width: 55px;
+    text-align: right;
+}
+input {
+  display: inline-block;
+  float: left;
+}
+</style>
+
+  <title>Draggable</title>
   <script src="js/jquery-1.10.2.js"></script>
-  <script src="js/jquery-ui-1.10.4.custom.js"></script>
-  <script src="js/svg-input-elements.js"></script>
   <script src="js/svg.js"></script>
-  <style>
-      #draggable { width: 150px; height: 150px; padding: 0.5em; position: absolute;}
-      #draggable2 { width: 150px; height: 150px; padding: 0.5em; position: absolute;}
-  </style>
+  <script src="js/svg.foreignobject.js"></script>
+  <script src="js/svg.draggable.js"></script>
+  <script src="js/svg.easing.js"></script>
+  <script src="js/svgRenderer.js"></script>
+  <script src="js/visitor.js"></script>
+
+  <div id="drawing"> </div>
+
   <script>
 
-    var bob = {'child': null, 'position': {'left':500, 'top':0 }};
-
-    var snapParents;
 
 
-function snapPosition(position, child) {
-      var ret_pos = {'left':position.left, 'top':position.top};
-      for (var i = snapParents.length - 1; i >= 0; i--) {
-          if (snapParents[i].id !== child)
-          {
+  var svgRen = new SvgRenderer('drawing', '100%', '100%');
+  var master = svgRen.addMasterFrame();
+  var sideBar = svgRen.addSideBar();
+  sideBar.addChild(svgRen.addParallelFrame());
 
-              var pLeft = snapParents[i].id.position().left;
-              var pTop = snapParents[i].id.position().top + 150;
-              var dist = Math.sqrt(Math.pow((position.left-pLeft), 2) + Math.pow((position.top-pTop), 2));
-              if (dist < 150) {
-                ret_pos.left = pLeft;
-                ret_pos.top = pTop;
-                snapParents[i].id.data("child", child);
-                child.data("wigetParent", snapParents[i].id);
-                child.wigetParent = snapParents[i].id;
-                break;
-            }
-            else
-            {
-                snapParents[i].id.data("child", null);
-                child.data("wigetParent", null);
-            }
-          }
-    };
-    return ret_pos;
-}
+  sideBar.addChild(svgRen.addTerminalState("state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
+  sideBar.addChild(svgRen.addTerminalState("state2", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
+  sideBar.addChild(svgRen.addTerminalState("state3", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
 
-
-var onDrag =  function(event, ui) {
-    if ($(this).data("child") !== undefined && $(this).data("child") !== null)
-   {
-
-    var ret_pos = {'left':ui.position.left, 'top':ui.position.top};
-    ret_pos.top += 150;
-    $(this).data("child").css(ret_pos);
-  }
-  else
-  {
-    var ret = snapPosition(ui.offset, $(this));
-    console.log(ret.left - ui.offset.left);
-    ui.position.left = ui.position.left + ret.left - ui.offset.left;
-    ui.position.top = ui.position.top + ret.top - ui.offset.top;
-  }
-};
-
-
-var onDrag2 = function(event, ui) {
-   if ($(this).data("child") !== undefined && $(this).data("child") !== null)
-   {
-
-    var ret_pos = {'left':ui.position.left, 'top':ui.position.top};
-    ret_pos.top += 150;
-    $(this).data("child").css(ret_pos);
-
-  }
-};
-
-var onEnd = function() {
-      //$(this).offset({'top': 100, 'left': 100});
-  };
-
-  var checkRevert = function(event, ui) {
-    if ($(this).data("wigetParent") === undefined || $(this).data("wigetParent") == null)
-    {
-        return true;
-    }
-
-    return false;
-};
-
-
-//var draw = SVG('drawing').size(300,300);
-//var rect = draw.rect(100,100).attr({fill: '#f06'});
-
-</script>
-</head>
-
-<svg id="drawing" version="1.1" width="600px" height="600px" xmlns="http://www.w3.org/2000/svg">
-</svg>
-<body>
-
-  <script type="text/javascript">
-    var svg = document.getElementById("svg");
-    var textarea = SVGIE.textarea(svg, { width: 600 }, "hello");
-
-</script>
-
-<div id="draggable" class="draggable ui-widget-content">
-  <svg>
-      <circle cx="100" cy="100" r="50" stroke-width="1" stroke="#000" fill="#ccc" />
-  </circle>
-</svg>
-</div>
-
-<div id="draggable2" class="draggable ui-widget-content">
-  <svg>
-      <circle cx="100" cy="100" r="50" stroke-width="1" stroke="#000" fill="#ccc" />
-  </circle>
-</svg>
-</div>
-
-
-
+  </script>
+</meta>
 </body>
 </html>
