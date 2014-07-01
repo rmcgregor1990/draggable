@@ -1,0 +1,87 @@
+@import "compass";
+
+// FLAGS
+$experimental-support-for-svg: true;
+
+// COLOR VARIABLES
+$col1: #C9E5F3;
+$col2: #C3ABDC;
+$col3: #ABDCB1;
+$col4: #FAB8B3;
+$col5: #FAF4C2;
+
+// COLOR MAP
+$state-col:           $col1;
+$frame-col:           $col2;
+$snap-col:            $col3;
+$trash-col:           $col4;
+$side-col:            $col5;
+
+// FUNCTIONS
+@function hover-color($color) {
+  $value: darken($color, 5%);
+  @return unquote($value);
+}
+@function stroke-color($color) {
+  $value: darken($color, 35%);
+  @return unquote($value);
+}
+
+@mixin object($baseColor, $hover: true){
+  fill: $baseColor;
+  stroke: stroke-color($baseColor);
+  stroke-width: 1;
+  text {
+    fill:  stroke-color($baseColor);
+    stroke-width: 0;
+  }
+  @if $hover {
+    &:hover {
+      fill: hover-color($baseColor);
+      cursor: move;
+    }
+  }
+}
+
+.frame, .state, .sidebar, .trash, .snapPoint {
+  stroke: #333;
+}
+
+.arrowHead,
+.serial-connector,
+.parallel-connector-arrowHead {
+  opacity: .5;
+}
+
+.serial-connector {
+  fill: #000;
+}
+
+.parallel-connector-arrowHead {
+  fill: #FFF;
+}
+
+// STYLES
+.frame {
+  @include object($frame-col);
+}
+
+.state {
+  @include object($state-col);
+}
+
+.sidebar,
+.masterFrame {
+//  @include object($side-col);
+  fill: #FFF;
+  stroke: stroke-color(#333);
+  stroke-width: 1;
+}
+
+.trash {
+  @include object($trash-col);
+}
+
+.snapPoint {
+  @include object($snap-col, false);
+}

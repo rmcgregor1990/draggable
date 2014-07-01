@@ -129,7 +129,7 @@ SvgRenderer.prototype = {
     },
 
 
-    _groupSnap: function(child) {
+    _groupSnap: function(child, event) {
         for (var i = 0; i < this.snapPoints.length; i++) {
             var snapPoint = this.snapPoints[i];
             if (snapPoint.parent !== child) {
@@ -150,7 +150,7 @@ SvgRenderer.prototype = {
 
 
     _elementOnDrag: function(delta, event) {
-        this.remember('snapPoint', parentThis._groupSnap(this));
+        this.remember('snapPoint', parentThis._groupSnap(this, event));
     },
 
 
@@ -244,9 +244,10 @@ SvgRenderer.TerminalState = SVG.invent({
 
             for (var i = 0; i < args.length; i++) {
                 arg = args[i];
-                if (arg.value === undefined) arg.value = 0;
-                fobj.appendChild("label", {for: arg.name, innerText: arg.name, class:'state-argLabel'});
-                fobj.appendChild("input", {id: arg.name, value: arg.value, size: 1, class:'state-argInput'});
+                if (arg.value === undefined) arg.value = '';
+                // Not sure if I want to remove these completely
+//                fobj.appendChild("label", {for: arg.name, innerText: arg.name, class:'state-argLabel', size: 0, style: 'display: none;'});
+                fobj.appendChild("input", {id: arg.name, placeholder: arg.name, title: arg.name, value: arg.value, size: 10, class:'state-argInput'});
             };
             var text = this.text(function(add) {
             add.tspan(name).newLine()}).dx(5);

@@ -1,0 +1,92 @@
+/* line 46, draggable.scss */
+.frame, .state, .sidebar, .trash, .snapPoint {
+  stroke: #333;
+}
+
+/* line 50, draggable.scss */
+.arrowHead,
+.serial-connector,
+.parallel-connector-arrowHead {
+  opacity: .5;
+}
+
+/* line 56, draggable.scss */
+.serial-connector {
+  fill: #000;
+}
+
+/* line 60, draggable.scss */
+.parallel-connector-arrowHead {
+  fill: #FFF;
+}
+
+/* line 65, draggable.scss */
+.frame {
+  fill: #c3abdc;
+  stroke: #693e96;
+  stroke-width: 1;
+}
+/* line 34, draggable.scss */
+.frame text {
+  fill: #693e96;
+  stroke-width: 0;
+}
+/* line 39, draggable.scss */
+.frame:hover {
+  fill: #b699d4;
+  cursor: move;
+}
+
+/* line 69, draggable.scss */
+.state {
+  fill: #c9e5f3;
+  stroke: #379fd3;
+  stroke-width: 1;
+}
+/* line 34, draggable.scss */
+.state text {
+  fill: #379fd3;
+  stroke-width: 0;
+}
+/* line 39, draggable.scss */
+.state:hover {
+  fill: #b4dbee;
+  cursor: move;
+}
+
+/* line 73, draggable.scss */
+.sidebar,
+.masterFrame {
+  fill: #FFF;
+  stroke: black;
+  stroke-width: 1;
+}
+
+/* line 81, draggable.scss */
+.trash {
+  fill: #fab8b3;
+  stroke: #eb1f0f;
+  stroke-width: 1;
+}
+/* line 34, draggable.scss */
+.trash text {
+  fill: #eb1f0f;
+  stroke-width: 0;
+}
+/* line 39, draggable.scss */
+.trash:hover {
+  fill: #f8a29b;
+  cursor: move;
+}
+
+/* line 85, draggable.scss */
+.snapPoint {
+  fill: #abdcb1;
+  stroke: #3e9649;
+  stroke-width: 1;
+}
+/* line 34, draggable.scss */
+.snapPoint text {
+  fill: #3e9649;
+  stroke-width: 0;
+}
