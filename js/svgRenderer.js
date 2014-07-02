@@ -140,9 +140,7 @@ SvgRenderer.prototype = {
                         child.dmove(dx, dy);
                     }
                     return snapPoint;
-                }
-                else {
-                }
+                }  
             }
         }
         return null;
@@ -210,7 +208,7 @@ SvgRenderer.prototype = {
         for (var i = 0; i < this.snapPoints.length; i++) {
             var p = this.snapPoints[i];
             if (p.bounds === undefined) {
-                p.marker = this.snapPointGroup.circle(0);
+                p.marker = this.snapPointGroup.circle(0).hide();
                 p.marker.center(p.x,p.y); //.fill({color: gradient});
                 p.marker.addClass("snapPoint");
                 //p.marker.attr({'fill-opacity': 0.6, stroke: '#003', 'stroke-width': 1});
@@ -232,11 +230,12 @@ SvgRenderer.TerminalState = SVG.invent({
     {
         init: function(name, args, colour) {
             if (colour === undefined) colour = 'lightblue';
+            this.spikeHeight = 10;
 
             var input_height = args.length*30;
             var terminalState = this;
             terminalState.stateName = name;
-            var rect = this.rect(100, 30 + input_height)
+            var shape = this.path("M0 0 l 10 0 l 0 10 l 10 -10 l 100 0 l 0 "+(input_height + 30).toString()+" l -100 0 l -10 10 l 0 -10 l -10 0 Z");
             //rect.attr({ fill: colour, 'fill-opacity': 0.9, stroke: '#001', 'stroke-width': 4});
             //rect.radius(10);
             var fobj = this.foreignObject(100, input_height).attr({id:'fobj'}).move(0,30);
@@ -264,7 +263,7 @@ SvgRenderer.TerminalState = SVG.invent({
             text.addClass("state-title")
 
             var groupHandle = this.group();
-            groupHandle.add(rect);
+            groupHandle.add(shape);
             groupHandle.add(text);
             terminalState.add(groupHandle);
             terminalState.add(fobj);
@@ -274,13 +273,18 @@ SvgRenderer.TerminalState = SVG.invent({
             terminalState.addClass("state");
         },
 
+        bbox: function() {
+            var box = new SVG.BBox(this);
+            box.height = box.height-this.spikeHeight;
+            return box;
+        },
+
 
         getArgs: function () {
             var arg_list = [];
-            for (var i = 0; i < this.fobj.node.childNodes.length; i +=2) {
-                var label = this.fobj.node.childNodes[i];
-                var input = this.fobj.node.childNodes[i+1];
-                arg_list.push({name: label.innerText, value: input.value});
+            for (var i = 0; i < this.fobj.node.childNodes.length; i++) {
+                var input = this.fobj.node.childNodes[i];
+                arg_list.push({name: input.title, value: input.value});
             }
 
             return arg_list;
@@ -393,11 +397,13 @@ SvgRenderer.ParallelFrame = SVG.invent({
     {
         init: function() {
             //Editable appearance based parameters
-            this.headerHeight= 25;
+            this.spikeHeight = 10;
+            this.spikeWidth = 10;
+            this.headerHeight= 20;
             this.footerHeight= 10;
-            this.sideBarWidth= 20;
-            this.childSpacing= 40;
-            this.childOverExtend = 20;
+            this.sideBarWidth= 10;
+            this.childSpacing= 30;
+            this.childOverExtend = 50;
             this.emptyDimentions = {width: 80, height: 20} // the interior dimentions when it has no children
 
             //class private data
@@ -406,10 +412,13 @@ SvgRenderer.ParallelFrame = SVG.invent({
             this.svgPolygon= null;
             this.dragHandle= null;
             this.points= new SVG.PointArray([[0,0], [120,0], [120, this.headerHeight], [this.sideBarWidth, this.headerHeight], [this.sideBarWidth, 120], [120, 120], [120, 145],  [0, 145]]);
+            this.path_array = new SVG.PathArray("M 0 0 l 10 0 l 0 10 l 10 -10 l 140 0 l 0 20 l -10 10 l 0 -10 l -10 0 l -110 0 l -10 10 l 0 -10 l -10 0 l 0 120 l 140 0 l 0 20 l -130 0 l -10 10 l 0 -10 l -10 0 Z");
             this.connectionLine = null;
             //Do an inital resize to get the right starting dims
             this.resizeToChildren();
         },
+
+
 
         setPolyAttrs: function(attrs) {
             if (this.svgPolygon !== null) {
@@ -418,10 +427,10 @@ SvgRenderer.ParallelFrame = SVG.invent({
         },
 
         plotPoly : function(points) {
-            if (points === undefined) points = this.points;
+            if (points === undefined) points = this.path_array;
             if (this.svgPolygon === null)
             {
-                this.svgPolygon = this.put(new SVG.Polygon);
+                this.svgPolygon = this.put(new SVG.Path);
                 this.svgPolygon.addClass('frame');
                 this.svgPolygon.plot(points);
             }
@@ -432,7 +441,8 @@ SvgRenderer.ParallelFrame = SVG.invent({
         getSnapPoints : function() {
             var points = [];
             var absPos = this.absPos();
-            var max_y = absPos.y + this.childStart.y, max_x = absPos.x + this.childStart.x;
+            var max_y = absPos.y + this.childStart.y;
+            var max_x = absPos.x + this.childStart.x;
             for (var i = 0; i < this.childNodes.length; i++) {
                 var child = this.childNodes[i];
                 points.push({x: absPos.x + child.x(), y: absPos.y + child.y(), parent: this, number: i});
@@ -441,7 +451,12 @@ SvgRenderer.ParallelFrame = SVG.invent({
             }
 
             //add extra empty point at the end
-            points.push({x: max_x + this.childSpacing, y: absPos.y + this.childStart.y, parent: this, number: i});
+            var x_spacing = 0;
+            if (this.childNodes.length  > 0)
+            {
+                x_spacing = this.childSpacing;
+            }
+            points.push({x: max_x + x_spacing, y: absPos.y + this.childStart.y, parent: this, number: i});
 
             return points;
         },
@@ -455,6 +470,12 @@ SvgRenderer.ParallelFrame = SVG.invent({
             };
         },
 
+        bbox: function() {
+            var box = new SVG.BBox(this);
+            box.height = box.height-this.spikeHeight;
+            return box;
+        },
+
         resizeToChildren : function() {
             //fit frame to the combined bounding box of all its children
             var set = this.getChildSet();
@@ -462,13 +483,31 @@ SvgRenderer.ParallelFrame = SVG.invent({
             if (box.width == 0){
                 box = this.emptyDimentions;
             }
-            var points = this.points;
-            points.value[1][0] = this.sideBarWidth + box.width + this.childOverExtend;
-            points.value[2][0] = this.sideBarWidth + box.width + this.childOverExtend;
-            points.value[4][1] = this.headerHeight + box.height;
-            points.value[5][1] = this.headerHeight + box.height;
-            points.value[6][1] = this.headerHeight + this.footerHeight + box.height;
-            points.value[7][1] = this.headerHeight + this.footerHeight + box.height;
+            var points = this.path_array;
+            points.value[4][1] = this.sideBarWidth + box.width + this.childOverExtend;
+            points.value[5][1] = this.sideBarWidth + box.width + this.childOverExtend;
+            points.value[6][1] = this.sideBarWidth + box.width + this.childOverExtend - this.spikeWidth;
+            points.value[7][1] = this.sideBarWidth + box.width + this.childOverExtend - this.spikeWidth;
+            points.value[8][1] = this.sideBarWidth + box.width + this.childOverExtend - this.spikeWidth;
+            //points.value[9][1] = this.sideBarWidth + box.width + this.childOverExtend - this.spikeWidth;
+            //points.value[7][1] = this.sideBarWidth + box.width + this.childOverExtend;
+            //points.value[8][1] = this.sideBarWidth + box.width + this.childOverExtend;
+
+            points.value[13][2] = this.headerHeight + box.height;
+            points.value[14][2] = this.headerHeight + box.height;
+            points.value[15][2] = this.headerHeight + this.footerHeight + box.height;
+            points.value[16][2] = this.headerHeight + this.footerHeight + box.height;
+            points.value[17][2] = this.headerHeight + this.footerHeight + box.height + this.spikeHeight;
+            points.value[18][2] = this.headerHeight + this.footerHeight + box.height;
+            points.value[19][2] = this.headerHeight + this.footerHeight + box.height;
+
+
+           //points.value[1][0] = this.sideBarWidth + box.width + this.childOverExtend;
+            //points.value[2][0] = this.sideBarWidth + box.width + this.childOverExtend;
+            //points.value[4][1] = this.headerHeight + box.height;
+            //points.value[5][1] = this.headerHeight + box.height;
+            //points.value[6][1] = this.headerHeight + this.footerHeight + box.height;
+           // points.value[7][1] = this.headerHeight + this.footerHeight + box.height;
             this.plotPoly(points);
 
             //redraw the cool connection lines in the frame header
@@ -508,8 +547,8 @@ SvgRenderer.SerialFrame = SVG.invent({
             this.childNodes= [];
             this.connectionLine = null;
             this.headerHeight= 30;
-            this.childSpacing= 12;
-            this.childStart= {x:10, y: 0};
+            this.childSpacing= 0;
+            this.childStart= {x:0, y: 0};
             this.maxChildren = 2
         },
 
