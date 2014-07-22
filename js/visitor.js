@@ -20,7 +20,8 @@ Visitor.prototype.visit = function(node) {
 }
 
 Visitor.prototype.visit_master = function(node) {
-    return {type: 'MasterFrame', child: this.visit(node.child())};
+    //master frame is ignored
+    return this.visit(node.child());
 }
 
 Visitor.prototype.visit_parallel = function(node) {
@@ -45,6 +46,6 @@ Visitor.prototype.visit_serial = function(node) {
 
 
 Visitor.prototype.visit_terminal = function(node) {
-    return {type: 'TerminalState', name: node.stateName, args: node.getArgs()};
+    return {type: 'TerminalState', moduleName: node.moduleName, name: node.stateName, args: node.getArgs()};
 }
 

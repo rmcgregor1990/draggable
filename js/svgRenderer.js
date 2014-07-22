@@ -21,9 +21,19 @@ SvgRenderer.prototype = {
         parentThis = this;
     },
 
+    renderToTree: function() {
+        var visitor = new Visitor();
+        return visitor.visit(this.masterFrame);
+    },
+
     createFromTree: function(tree) {
         if (tree.type === "MasterFrame") {
-            this.masterframe.addChild(this.createChild(tree.child));
+            //master frame is ignored as it already exists
+            this.masterFrame.addChild(this.createChild(tree.child));
+        }
+        else
+        {
+            this.masterFrame.addChild(this.createChild(tree));
         }
     },
 
@@ -49,7 +59,7 @@ SvgRenderer.prototype = {
 
 
         if (node.type === 'TerminalState') {
-            return this.addTerminalState.apply(this, [node.name, node.args]);
+            return this.addTerminalState.apply(this, [node.moduleName, node.name, node.args]);
         }
     },
 
@@ -69,7 +79,7 @@ SvgRenderer.prototype = {
         frame.init();
         this.canvas.add(frame);
         frame.move(250,20);
-        this.masterframe = frame;
+        this.masterFrame = frame;
     },
 
     addSideBar: function() {
@@ -79,17 +89,24 @@ SvgRenderer.prototype = {
         return bar;
     },
 
-    addTerminalState: function(name, args) {
+    addTerminalState: function(moduleName, name, args) {
         if (name === undefined) name = "tempname";
         if (args === undefined) args = [{name: 'bob'}, {name: 'bill'}];
 
         var terminalState = new SvgRenderer.TerminalState;
-        terminalState.init(name, args);
+        terminalState.init(moduleName, name, args);
         this.canvas.add(terminalState);
-        var frame = this.addSerialFrame(terminalState, this.addTerminalState, [name, args]);
+        var frame = this.addSerialFrame(terminalState, this.addTerminalState, [moduleName, name, args]);
         return frame;
     },
 
+    addTerminalStateFromString: function(moduleName, func) {
+        re = /([a-zA-Z][a-zA-Z0-9]*)/g;
+        var groups = func.match(re);
+        var name = groups[0];
+        var args = groups.splice(1);
+        this.addTerminalState(moduleName, name, args);
+    },
 
     addParallelFrame: function () {
 
@@ -97,8 +114,6 @@ SvgRenderer.prototype = {
         frame.init();
         this.canvas.add(frame);
         frame.plotPoly();
-        //frame.setPolyAttrs({ class: }
-       // frame.setPolyAttrs({ fill: colour, 'fill-opacity': 0.8, stroke: '#000', 'stroke-width': 3});
         frame.dragHandle = frame.svgPolygon;
         //everything is inside its own serial frame
         var serial_frame = this.addSerialFrame(frame, this.addParallelFrame, []);
@@ -228,19 +243,18 @@ SvgRenderer.TerminalState = SVG.invent({
 
     extend:
     {
-        init: function(name, args, colour) {
-            if (colour === undefined) colour = 'lightblue';
+        init: function(moduleName, name, args) {
             this.spikeHeight = 10;
+            this.inputHeight = 30;
+            this.headerHeight = 30;
 
-            var input_height = args.length*30;
+            var input_height = args.length*this.inputHeight;
             var terminalState = this;
+            terminalState.moduleName = moduleName;
             terminalState.stateName = name;
-            var shape = this.path("M0 0 l 10 0 l 0 10 l 10 -10 l 100 0 l 0 "+(input_height + 30).toString()+" l -100 0 l -10 10 l 0 -10 l -10 0 Z");
-            //rect.attr({ fill: colour, 'fill-opacity': 0.9, stroke: '#001', 'stroke-width': 4});
-            //rect.radius(10);
-            var fobj = this.foreignObject(100, input_height).attr({id:'fobj'}).move(0,30);
-
-
+            var shape = this.path("M0 0 l 10 0 l 0 10 l 10 -10 l 100 0 l 0 "+(input_height + this.headerHeight).toString()+" l -100 0 l -10 10 l 0 -10 l -10 0 Z");
+            //foriegn object to embed the input boxes into
+            var fobj = this.foreignObject(100, input_height).attr({id:'fobj'}).move(10, 30);
             for (var i = 0; i < args.length; i++) {
                 arg = args[i];
                 if (arg.value === undefined) arg.value = '';
@@ -248,8 +262,23 @@ SvgRenderer.TerminalState = SVG.invent({
 //                fobj.appendChild("label", {for: arg.name, innerText: arg.name, class:'state-argLabel', size: 0, style: 'display: none;'});
                 fobj.appendChild("input", {id: arg.name, placeholder: arg.name, title: arg.name, value: arg.value, size: 10, class:'state-argInput'});
             };
+
+            //Module name
+            var mod_text = this.text(function(add) {
+            add.tspan(moduleName).newLine()}).dx(50);
+            mod_text.font({
+              family:   'Helvetica'
+            , size:     12
+            , anchor:   'center'
+            , leading:  '1.0em'
+            , bold: false
+            , weight: 'bold'
+            });
+            mod_text.addClass("state-module")
+
+            //state name
             var text = this.text(function(add) {
-            add.tspan(name).newLine()}).dx(5);
+            add.tspan(name).newLine()}).dx(10).dy(5);
 
             text.font({
               family:   'Helvetica'
@@ -262,9 +291,13 @@ SvgRenderer.TerminalState = SVG.invent({
 
             text.addClass("state-title")
 
+            // the drag handle for this object
             var groupHandle = this.group();
+            //the background shape and the text are draggable
             groupHandle.add(shape);
+            groupHandle.add(mod_text);
             groupHandle.add(text);
+            //add everything to the terminal state group
             terminalState.add(groupHandle);
             terminalState.add(fobj);
             fobj.front();
@@ -286,9 +319,26 @@ SvgRenderer.TerminalState = SVG.invent({
                 var input = this.fobj.node.childNodes[i];
                 arg_list.push({name: input.title, value: input.value});
             }
-
             return arg_list;
         },
+
+        getFunctionString: function () {
+            var args = this.getArgs();
+            var ans = this.stateName;
+            ans += "(";
+            for (var i = 0; i < args.length; i++) {
+                var value = args[i].value.trim();
+                if (value === "") {
+                    value = "0";
+                }
+                ans += value;
+                if (i < args.length-1) {
+                    ans += ",";
+                }
+            }
+            ans += ")";
+            return ans;
+        }
     }
 })
 
@@ -411,7 +461,6 @@ SvgRenderer.ParallelFrame = SVG.invent({
             this.childStart= {x: this.sideBarWidth, y: this.headerHeight};
             this.svgPolygon= null;
             this.dragHandle= null;
-            this.points= new SVG.PointArray([[0,0], [120,0], [120, this.headerHeight], [this.sideBarWidth, this.headerHeight], [this.sideBarWidth, 120], [120, 120], [120, 145],  [0, 145]]);
             this.path_array = new SVG.PathArray("M 0 0 l 10 0 l 0 10 l 10 -10 l 140 0 l 0 20 l -10 10 l 0 -10 l -10 0 l -110 0 l -10 10 l 0 -10 l -10 0 l 0 120 l 140 0 l 0 20 l -130 0 l -10 10 l 0 -10 l -10 0 Z");
             this.connectionLine = null;
             //Do an inital resize to get the right starting dims
@@ -489,9 +538,7 @@ SvgRenderer.ParallelFrame = SVG.invent({
             points.value[6][1] = this.sideBarWidth + box.width + this.childOverExtend - this.spikeWidth;
             points.value[7][1] = this.sideBarWidth + box.width + this.childOverExtend - this.spikeWidth;
             points.value[8][1] = this.sideBarWidth + box.width + this.childOverExtend - this.spikeWidth;
-            //points.value[9][1] = this.sideBarWidth + box.width + this.childOverExtend - this.spikeWidth;
-            //points.value[7][1] = this.sideBarWidth + box.width + this.childOverExtend;
-            //points.value[8][1] = this.sideBarWidth + box.width + this.childOverExtend;
+
 
             points.value[13][2] = this.headerHeight + box.height;
             points.value[14][2] = this.headerHeight + box.height;
@@ -500,14 +547,6 @@ SvgRenderer.ParallelFrame = SVG.invent({
             points.value[17][2] = this.headerHeight + this.footerHeight + box.height + this.spikeHeight;
             points.value[18][2] = this.headerHeight + this.footerHeight + box.height;
             points.value[19][2] = this.headerHeight + this.footerHeight + box.height;
-
-
-           //points.value[1][0] = this.sideBarWidth + box.width + this.childOverExtend;
-            //points.value[2][0] = this.sideBarWidth + box.width + this.childOverExtend;
-            //points.value[4][1] = this.headerHeight + box.height;
-            //points.value[5][1] = this.headerHeight + box.height;
-            //points.value[6][1] = this.headerHeight + this.footerHeight + box.height;
-           // points.value[7][1] = this.headerHeight + this.footerHeight + box.height;
             this.plotPoly(points);
 
             //redraw the cool connection lines in the frame header
@@ -666,8 +705,6 @@ SvgRenderer.SidebarFrame = SVG.invent({
             this.svgShape.addClass("sidebar");
             this.svgTrash = this.rect(this.trashDims.width, this.trashDims.length);
             this.svgTrash.addClass("trash");
-            //this.svgShape.fill({opacity: 0.1});
-            //this.svgShape.stroke({ color: '#000000', opacity: 0.8, width: 7 });
         },
 
 
@@ -806,6 +843,21 @@ SvgRenderer.MasterFrame = SVG.invent({
         }
     }
 })
+
+
+//helpstuff stuff
+//a proper string formater
+if (!String.format) {
+  String.format = function(format) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return format.replace(/{(\d+)}/g, function(match, number) { 
+      return typeof args[number] != 'undefined'
+        ? args[number] 
+        : match
+      ;
+    });
+  };
+}
 
 
 

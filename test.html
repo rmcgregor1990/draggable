@@ -33,14 +33,14 @@ input {
 
 
 
-  var svgRen = new SvgRenderer('drawing', '100%', '100%');
+  var svgRen = new SvgRenderer('drawing', '1000px', '1000px');
   var master = svgRen.addMasterFrame();
   var sideBar = svgRen.addSideBar();
   sideBar.addChild(svgRen.addParallelFrame());
 
-  sideBar.addChild(svgRen.addTerminalState("state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
-  sideBar.addChild(svgRen.addTerminalState("state2", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
-  sideBar.addChild(svgRen.addTerminalState("state3", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
+  sideBar.addChild(svgRen.addTerminalState("LED1", "state1", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
+  sideBar.addChild(svgRen.addTerminalState("LED2", "state2", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
+  sideBar.addChild(svgRen.addTerminalState("LED3", "state3", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
 
   </script>
 </meta>
