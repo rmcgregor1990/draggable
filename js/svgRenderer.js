@@ -7,6 +7,7 @@ function SvgRenderer(svg_element, width, height) {
     this.height = height;
     this.width = width;
     this.canvas = SVG(svg_element).size(width, height);
+    this.canvas.parentRenderer = this;
     parentThis = undefined;
     this.snapPoints =  [];
     this.snapPointGroup = undefined;
@@ -27,13 +28,19 @@ SvgRenderer.prototype = {
     },
 
     createFromTree: function(tree) {
-        if (tree.type === "MasterFrame") {
-            //master frame is ignored as it already exists
-            this.masterFrame.addChild(this.createChild(tree.child));
-        }
-        else
+        //clear the master frame
+        this.masterFrame.clearChildren();
+
+        if (tree !== undefined)
         {
-            this.masterFrame.addChild(this.createChild(tree));
+            if (tree.type === "MasterFrame") {
+                //master frame is ignored as it already exists
+                this.masterFrame.addChild(this.createChild(tree.child));
+            }
+            else
+            {
+                this.masterFrame.addChild(this.createChild(tree));
+            }
         }
     },
 
@@ -74,9 +81,9 @@ SvgRenderer.prototype = {
     },
 
 
-    addMasterFrame: function() {
+    addMasterFrame: function(change_callback) {
         var frame = new SvgRenderer.MasterFrame;
-        frame.init();
+        frame.init(change_callback);
         this.canvas.add(frame);
         frame.move(250,20);
         this.masterFrame = frame;
@@ -104,8 +111,11 @@ SvgRenderer.prototype = {
         re = /([a-zA-Z][a-zA-Z0-9]*)/g;
         var groups = func.match(re);
         var name = groups[0];
-        var args = groups.splice(1);
-        this.addTerminalState(moduleName, name, args);
+        args = [];
+        for (var i = 1; i < groups.length; i++) {
+            args.push({name :groups[i]});
+        };
+        return this.addTerminalState(moduleName, name, args);
     },
 
     addParallelFrame: function () {
@@ -155,7 +165,7 @@ SvgRenderer.prototype = {
                         child.dmove(dx, dy);
                     }
                     return snapPoint;
-                }  
+                }
             }
         }
         return null;
@@ -383,17 +393,23 @@ SvgRenderer.GenericFrame = SVG.invent({
                 child.dmove(dx, dy);
                 new_container.add(child);
             }
+            else
+            {
+                child.remove();
+            }
             if (update) {
                 this.update();
             }
         },
 
-        clearChildren : function(update) {
+        clearChildren : function(stop_index, update) {
+            if (stop_index == undefined) stop_index = 0;
             if (update === undefined) update = true;
 
-            for (var i = 0; i < this.childNodes.length; i++) {
-                this.childNodes.remove();
-                this.childNodes.push();
+            for (var i = this.childNodes.length-1; i >= stop_index; i--) {
+                child = this.childNodes[i];
+                child.remove();
+                this.childNodes.pop();
             }
 
             if (update) {
@@ -695,7 +711,7 @@ SvgRenderer.SidebarFrame = SVG.invent({
     {
        init: function() {
             this.childSpacing= 15;
-            this.childStart= {x:10, y: 10};
+            this.childStart= {x:10, y: 40};
             this.padding = {x: 10, y: 10};
             this.trashDims = {width: 150, length: 150};
             this.childNodes= [];
@@ -705,6 +721,41 @@ SvgRenderer.SidebarFrame = SVG.invent({
             this.svgShape.addClass("sidebar");
             this.svgTrash = this.rect(this.trashDims.width, this.trashDims.length);
             this.svgTrash.addClass("trash");
+
+            //drop down box
+            var fobj = this.foreignObject(100, 100).attr({id:'fobj'}).move(20, 2);
+            this.fobj = fobj;
+            fobj.appendChild("select", {id: "moduleselect", class:'sidebar-select'});
+            this.dropDown = fobj.node.children[0];
+            this.dropDown.onchange = this.eventModuleSelect.bind(this);
+        },
+
+        setStateList : function(state_list) {
+            if (state_list !== undefined && state_list[0].moduleName !== undefined)
+            {
+                this.stateList = state_list;
+                for (var i=0; i < state_list.length; i++) {
+                    state = state_list[i];
+                    var option = document.createElement('option');
+                    option.text = state.moduleName;
+                    option.value = i;
+                    this.dropDown.add(option);
+                }
+                //select first option
+                this.eventModuleSelect();
+            }
+        },
+
+        eventModuleSelect : function(e) {
+            this.clearChildren(1);
+            var index = parseInt(this.dropDown.value);
+            states = this.stateList[index]
+            var moduleName = states.moduleName;
+            var parent = this.parent.parentRenderer;
+            for (var i = 0; i < states.terminalStates.length; i++) {
+                term_state =  states.terminalStates[i];
+                this.addChild(parent.addTerminalStateFromString(moduleName, term_state));
+            };
         },
 
 
@@ -727,8 +778,12 @@ SvgRenderer.SidebarFrame = SVG.invent({
         removeChild : function(child, new_container, update) {
             var index = this.childNodes.indexOf(child);
             this.__proto__.__proto__.removeChild.call(this, child, new_container, false);
-            var new_child = child.objectConstructor.apply(this, child.constructionArgs);
-            this.addChild(new_child, index);
+
+            //add the child again if it was transferred to a different object
+            if (new_container !== undefined) {
+                var new_child = child.objectConstructor.apply(this, child.constructionArgs);
+                this.addChild(new_child, index);
+            }
         },
 
         setPolyAttrs: function(attrs) {
@@ -771,36 +826,17 @@ SvgRenderer.MasterFrame = SVG.invent({
 
     extend:
     {
-       init: function() {
+       init: function(change_callback) {
             //tweekables
             this.childStart= {x: 10, y: 10};
             this.padding ={x: 10, y: 10}
             this.emptyDimentions = {width: 100, height: 100};
             //class vars
             this.childNodes= [];
+            this.changeCallback = change_callback;
             //Shapes
             this.svgShape= this.rect(100, 100).move(0, 0);
-            //this.svgShape.fill({opacity: 0.0});
-            //this.svgShape.stroke({ color: '#000000', opacity: 1.0, width: 3, dasharray: [7, 7] });
-            this.add(this.svgShape);
             this.svgShape.addClass("masterFrame");
-            // this.text("Parallel").leading(0).move(20, 25).font({
-            //                                                       family:   'Helvetica'
-            //                                                     , size:     20
-            //                                                     , anchor:   'left'
-            //                                                     , bold: true
-            //                                                     , weight: 'bold'
-            //                                                     });
-
-
-            // this.text("Sequential").rotate(90).leading(0).move(25, 0).font({
-            //                                                               family:   'Helvetica'
-            //                                                             , size:     20
-            //                                                             , anchor:   'left'
-            //                                                             , bold: true
-            //                                                             , weight: 'bold'
-            //                                                             });
-
             //intial resize
             this.resizeToChildren();
         },
@@ -827,6 +863,10 @@ SvgRenderer.MasterFrame = SVG.invent({
             if (this.childNodes.length > 0) {
                 this.child().move(this.childStart.x, this.childStart.y);
             }
+            //on child reorder callback the change callback
+            if (this.changeCallback !== undefined) {
+                this.changeCallback();
+            }
         },
 
         resizeToChildren : function() {
@@ -837,7 +877,6 @@ SvgRenderer.MasterFrame = SVG.invent({
             else {
                 box = this.getChildSet().bbox();
             }
-
             this.svgShape.width(box.width + this.childStart.x + this.padding.x);
             this.svgShape.height(box.height + this.childStart.y + this.padding.y);
         }
@@ -850,9 +889,9 @@ SvgRenderer.MasterFrame = SVG.invent({
 if (!String.format) {
   String.format = function(format) {
     var args = Array.prototype.slice.call(arguments, 1);
-    return format.replace(/{(\d+)}/g, function(match, number) { 
+    return format.replace(/{(\d+)}/g, function(match, number) {
       return typeof args[number] != 'undefined'
-        ? args[number] 
+        ? args[number]
         : match
       ;
     });

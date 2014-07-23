@@ -42,6 +42,9 @@ input {
   sideBar.addChild(svgRen.addTerminalState("LED2", "state2", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
   sideBar.addChild(svgRen.addTerminalState("LED3", "state3", [{name:"Current"}, {name: "Time"}, {name: 'another'}]));
 
+  var state_list = [{moduleName:"LED1", terminalStates:["ON(duration)","OFF(duration)"]}, {moduleName:"Bluetooth1", terminalStates:["ADVERT(duration)","IDLE(duration)"]}];
+  sideBar.setStateList(state_list);
+
   </script>
 </meta>
 </body>
